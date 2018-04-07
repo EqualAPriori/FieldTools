@@ -3,7 +3,6 @@
 import struct
 import numpy as np
 import logging
-import pdb
 import sys
 
 def TestBinFile(infilename):
