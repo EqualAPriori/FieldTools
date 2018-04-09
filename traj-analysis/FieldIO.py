@@ -95,7 +95,22 @@ def ReadBinFile(infilename):
     else:
         AllFields = np.array(fielddata).reshape([nfields,M])
 
-    return Dim, griddim, h, M, nfields, AllFields
+
+    
+    # calc all coords
+    AllCoords = calcAllCoords(Dim,griddim,h,M)
+
+    # Check whether the cell is orthorhombic
+    orthorhombic = True
+    for i in range(Dim):
+        for j in range(Dim):
+            if i == j:
+                continue
+            if abs(h[i][j]) > 1e-8:
+                orthorhombic = False
+
+    return Dim, griddim, orthorhombic, M, nfields, AllCoords, AllFields
+
 
 
 def ReadDatFile(infilename):
@@ -143,6 +158,25 @@ def ReadDatFile(infilename):
 
     if complexdata:
         nfields = 2*nfields
+
+    # Check whether the cell is orthorhombic
+    orthorhombic = True
+    if ndim == 2:
+        if AllCoords[0][1] != 0.:
+            orthorhombic = False
+        if AllCoords[1][Nx[1]] != 0.:
+            orthorhombic = False
+    if ndim == 3:
+        # Check that the first non-zero mesh point has only a z translation
+        if AllCoords[0][1] != 0. or AllCoords[1][1] != 0.:
+            orthorhombic = False
+        # Check that the first y translation has no x,z
+        if AllCoords[0][Nx[2]] != 0 or AllCoords[2][Nx[2]] != 0:
+            orthorhombic = False
+        # Check that the first x translation has no y,z
+        if AllCoords[1][Nx[2]*Nx[1]] != 0 or AllCoords[2][Nx[2]*Nx[1]] != 0:
+            orthorhombic = False
+
 
     return ndim, griddim, np.prod(griddim), nfields, AllCoords, AllFields
 
