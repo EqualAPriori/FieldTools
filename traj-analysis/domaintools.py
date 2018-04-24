@@ -20,13 +20,16 @@ import sys
 sys.setrecursionlimit(100000)
 
 class DomainAnalyzer:
-    def __init__(self,coords,fields, density_field_index=0):
+    def __init__(self,coords,fields, density_field_index=0, density_threshold = 0.5):
         ''' Define and calculate useful variables for DomainAnalysis routines
         '''
 
         self.__coords = coords
         self.__fields = fields
+
         self.__density_field_index = density_field_index
+        self.__density_threshold = density_threshold
+
         self.__ndim = len(coords.shape) - 1
         self.__Nx = coords.shape[:3]
         self.__nfields = len(fields.shape) - self.__ndim
@@ -37,12 +40,14 @@ class DomainAnalyzer:
         self.__boxl = tuple(self.__coords[-1,-1,-1]) 
         self.__boxh = tuple(self.__coords[-1,-1,-1]*0.5) 
         self.__gridspacing = (self.__coords[1,0,0][0], self.__coords[0,1,0][1], self.__coords[0,0,1][2])
+
+    def setDensityThreshold(density_threshold):
+        self.__density_threshold = density_threshold
    
     def getDomainStats(self,getCenter=True, getArea=True, getVol=True, getIQ=True, plotMesh=False):
 
-        density_threshold = 0.5
         # create boolean selector from density fields for region definition
-        isdomain_array = (self.__fields[:,:,:,self.__density_field_index] > density_threshold)
+        isdomain_array = (self.__fields[:,:,:,self.__density_field_index] > self.__density_threshold)
 
         # FIXME, things break for non-cubic boxes. It must have to do with the vtk vs numpy indexing
 
@@ -83,7 +88,7 @@ class DomainAnalyzer:
             
             if getArea or getVol or getIQ:
                 # mesh domain
-                verts, faces, normals, values = self.meshDomain(idomain, density_threshold)
+                verts, faces, normals, values = self.meshDomain(idomain)
 
                 # get surface area, volume and isoperimetric quotient
                 if getArea or getIQ:
@@ -106,7 +111,7 @@ class DomainAnalyzer:
     def calcIQ(self, area, vol):
         return 36.0*np.pi * vol*vol / (area * area * area)
 
-    def meshDomain(self,idomain, density_threshold):
+    def meshDomain(self,idomain):
         '''
         Function to:
         1) apply PBC to the domains so that an entire domain is continuous (ie not split across boundaries)
@@ -150,16 +155,17 @@ class DomainAnalyzer:
         #tmp = np.resize(tmp,(1,len(tmp)))
         #PolyFTS_to_VTK.writeVTK("mydensity.vtk", self.__Nx, True, self.__M, AllCoords,tmp)
 
-        if self.__ndim != 3:
-            raise NotImplementedError("Due to use of Scikit-image's marching cubes. Meshing\
-                currently only works in 3 dimensions. Will need to use a different library \
-                to mesh in 2d")
-    
         # mesh! (using scikit-image)
-        #from skimage import measure
-        verts, faces, normals, values = measure.marching_cubes_lewiner(mydensity, density_threshold, spacing = self.__gridspacing)
+        if self.__ndim == 2:
+            raise NotImplementedError("Meshing in 2 dimensions is in development")
+            contours = skimage.measure.find_contours(mydensity, self.__density_threshold) 
+        elif self.__ndim == 3:
+            #from skimage import measure
+            verts, faces, normals, values = measure.marching_cubes_lewiner(mydensity, self.__density_threshold, spacing = self.__gridspacing)
+            return verts, faces, normals, values
+        else:
+            raise ValueError("Meshing makes no sense in 1 dimension!")
 
-        return verts, faces, normals, values
 
     def mesh_volume(self, verts, faces):
         actual_verts = verts[faces]
@@ -193,6 +199,8 @@ class DomainAnalyzer:
             plt.show()
         else:
             plt.savefig(filename)
+
+        plt.close()
 
     def calcDomainCOM(self,idomain, units='box'):
         ''' given a domain index, apply PBC and return the center of mass
