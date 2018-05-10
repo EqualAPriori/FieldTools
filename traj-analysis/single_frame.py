@@ -13,8 +13,9 @@ if __name__ == "__main__":
     AllCoords, AllFields = io.ReadBinFile(infile)
 
     domainanalyzer = DomainAnalyzer(AllCoords,AllFields)
-    stats = domainanalyzer.getDomainStats(plotMesh=True)
+    ndomains, com,area,vol,IQ = domainanalyzer.getDomainStats(plotMesh=True)
     #stats = domainanalyzer.getDomainStats(plotMesh=False)
     
+    stats = np.vstack((com.T,area,vol,IQ)).T
     np.savetxt("stats.dat",stats)
 
