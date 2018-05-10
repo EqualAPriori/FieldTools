@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import sys
+sys.path.append("/home/lequieu/Work/tools/lib/")
 
 import iotools as io
 import pdb
