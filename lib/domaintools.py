@@ -47,14 +47,32 @@ class DomainAnalyzer:
             self.__boxh = tuple(self.__coords[-1,-1,-1]*0.5) 
             self.__gridspacing = (self.__coords[1,0,0][0], self.__coords[0,1,0][1], self.__coords[0,0,1][2])
 
+        self.__needToIndexDomains = True
+
     def setDensityThreshold(density_threshold):
         self.__density_threshold = density_threshold
+        # if changing the Density threshold, will need to index domains again
+        self.__needToIndexDomains = True
   
     def getNdim():
         return self.__ndim
-    def getDomainStats(self, plotMesh=False):
+
+    def getDomainStats(self, useMesh=True, plotMesh=False):
         ''' Calculate properties of each of the domains
             return com, surface_area, volume, IQ
+
+            if useMesh == True, calculate a isosurface mesh to calculate the volumes and areas. 
+                This is very accurate, but can have issues creating a good mesh if domains are poorly defined (as in certain CL systems)
+
+                (Specifically the issue is if two domains are only separated by a single grid point.  When this happens, 
+                 the border around the domain belongs to two domains simultaneously and my current burning algorithm throws 
+                 an error. I use the border around a domain when applying PBC's to make sure a domain is continuous. 
+                 Eventually I might think of a better algorithm that will be robust to this edge case...
+                )
+
+            useMesh == False uses the less accurate approach of summing over the voxels to get the volume and area
+               the volume is still pretty accurate, the area...well, I'm not even going to implement it since in CL I only want volume
+
         '''
 
         # create boolean selector from density fields for region definition
@@ -66,8 +84,11 @@ class DomainAnalyzer:
         # FIXME, things break for non-cubic boxes. It must have to do with the vtk vs numpy indexing
 
         # identify domains
-        self.__regionID = None # initially empty, created in computeRegionIDs
-        self.__ndomains = self.identifyAndIndexDomains(isdomain_array)
+        if self.__needToIndexDomains:
+            self.__regionID = None # initially empty, created in computeRegionIDs
+            self.__ndomains = self.identifyAndIndexDomains(isdomain_array)
+        else:
+            print("Note: Using cached domain ID's")
 
         #nstats = 1+ 3*getCenter + getArea + getVol + getIQ
         #stats = np.zeros((self.__ndomains,nstats))
@@ -80,30 +101,37 @@ class DomainAnalyzer:
         for idomain in range(0,self.__ndomains):
             # calc center of domain
             com[idomain,:] = self.calcDomainCOM(idomain,units='coord')
-            if self.__ndim == 2:
-                contours = self.meshSingleDomain(idomain+1)
-                assert (len(contours) == 1), "The contour should only be one curve, if not the area and volume calculations will be completely wrong!"
-
-                surface_area[idomain] = self.contour_perimeter(contours[0])
-                volume[idomain] = self.contour_area(contours[0])
-                print(surface_area[idomain])
-                print(volume[idomain])
-                if plotMesh: 
-                    self.plotContours2D(contours)
-
-            if self.__ndim == 3: 
-                # mesh domain
-                verts, faces, normals, values = self.meshSingleDomain(idomain+1)
-
-                # get surface area, volume and isoperimetric quotient
-                surface_area[idomain] = measure.mesh_surface_area(verts, faces)
-                volume[idomain] = self.mesh_volume(verts,faces)
-
-                if plotMesh: 
-                    self.plotMesh3D(verts,faces, filename="mesh.{}.png".format(idomain+1))
-
-            IQ[idomain] = self.calcIQ(surface_area[idomain], volume[idomain])
             
+            if useMesh:
+                if self.__ndim == 2:
+                    # mesh domain
+                    contours = self.meshSingleDomain(idomain+1)
+                    assert (len(contours) == 1), "The contour should only be one curve, if not the area and volume calculations will be completely wrong!"
+
+                    # get surface area (perimeter) and volume (area)
+                    surface_area[idomain] = self.contour_perimeter(contours[0])
+                    volume[idomain] = self.contour_area(contours[0])
+
+                    if plotMesh: 
+                        self.plotContours2D(contours)
+
+                if self.__ndim == 3: 
+                    # mesh domain
+                    verts, faces, normals, values = self.meshSingleDomain(idomain+1)
+
+                    # get surface area, volume and isoperimetric quotient
+                    surface_area[idomain] = measure.mesh_surface_area(verts, faces)
+                    volume[idomain] = self.mesh_volume(verts,faces)
+
+                    if plotMesh: 
+                        self.plotMesh3D(verts,faces, filename="mesh.{}.png".format(idomain+1))
+
+                IQ[idomain] = self.calcIQ(surface_area[idomain], volume[idomain])
+
+            else:
+                surface_area[idomain] = -1.0 #FIXME surface_area is currently not calculated if no mesh
+                volume[idomain] = self.voxel_volume(idomain+1) # get volume from voxels
+                IQ[idomain] = 0.0
 
         return self.__ndomains, com, surface_area, volume, IQ
     
@@ -237,6 +265,13 @@ class DomainAnalyzer:
         v2 = actual_verts[:,2,:]
         # 1/6 \sum v0 \cdot (v1 x v2)
         return 1.0/6.0 * np.abs( (v0*np.cross(v1,v2)).sum(axis=1).sum() )
+
+    def voxel_volume(self,idomain):
+        ''' Get volume of idomain using voxels
+        '''
+        v_voxel = np.prod(self.__gridspacing) # volume of single voxel
+        n_voxel = np.sum(self.__regionID == idomain) # number of voxels in ith domain
+        return v_voxel*n_voxel
  
     def writeContours(self, contours,filename):
         ''' write contours to data files
@@ -360,6 +395,7 @@ class DomainAnalyzer:
 
         nregions = region_number-1;
 
+        self.__needToIndexDomains = False
         return nregions
         
 
@@ -388,8 +424,8 @@ class DomainAnalyzer:
               # must have neighbors that are domain (since spread region is only called 
               #   if coord_center is a domain). Therefore, it's a border
               if self.__borderID[neighbor] != 0 and self.__borderID[neighbor] != region_number:
-                #raise RuntimeError("Trying to set borderID[{0}]={1} but is it is already set to {2}".format(neighbor, region_number, self.__borderID[neighbor]))
-                print("Trying to set borderID[{0}]={1} but is it is already set to {2}".format(neighbor, region_number, self.__borderID[neighbor]))
+                raise RuntimeError("Trying to set borderID[{0}]={1} but is it is already set to {2}".format(neighbor, region_number, self.__borderID[neighbor]))
+                #print("Trying to set borderID[{0}]={1} but is it is already set to {2}".format(neighbor, region_number, self.__borderID[neighbor]))
               self.__borderID[neighbor] = region_number
  
               # set image flags of non-domain adjacent to domain according to the domain
@@ -400,10 +436,10 @@ class DomainAnalyzer:
               #   Raise and error just in case...
               #   make sure, not (0,0,0) and not new == old
               if not np.all(self.__image_flags[neighbor]==0) and not np.all(self.__image_flags[neighbor] == image_flag):
-                #raise RuntimeError("Tried to set image_flag of {0} to {2} but it was already set \
-                #    to {1} and not (0,0,0)".format(neighbor,self.__image_flags[neighbor], image_flag))
-                print("Tried to set image_flag of {0} to {2} but it was already set \
+                raise RuntimeError("Tried to set image_flag of {0} to {2} but it was already set \
                     to {1} and not (0,0,0)".format(neighbor,self.__image_flags[neighbor], image_flag))
+                #print("Tried to set image_flag of {0} to {2} but it was already set \
+                #    to {1} and not (0,0,0)".format(neighbor,self.__image_flags[neighbor], image_flag))
               
               self.__image_flags[neighbor] = image_flag
 

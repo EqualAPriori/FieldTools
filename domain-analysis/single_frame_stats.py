@@ -15,9 +15,13 @@ if __name__ == "__main__":
     AllCoords, AllFields = io.ReadBinFile(infile)
 
     domainanalyzer = DomainAnalyzer(AllCoords,AllFields)
-    ndomains, com,area,vol,IQ = domainanalyzer.getDomainStats(plotMesh=True)
-    #stats = domainanalyzer.getDomainStats(plotMesh=False)
-    
+
+    ndomains, com,area,vol,IQ = domainanalyzer.getDomainStats(useMesh=False,plotMesh=True)
     stats = np.vstack((com.T,area,vol,IQ)).T
-    np.savetxt("stats.dat",stats)
+    np.savetxt("stats_nomesh.dat",stats, header="comx comy comz area vol IQ")
+
+    ndomains, com,area,vol,IQ = domainanalyzer.getDomainStats(plotMesh=True)
+    stats = np.vstack((com.T,area,vol,IQ)).T
+    np.savetxt("stats_mesh.dat",stats, header="comx comy comz area vol IQ")
+
 
