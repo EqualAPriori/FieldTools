@@ -31,26 +31,37 @@ class DomainAnalyzer:
         self.__density_threshold = density_threshold
 
         self.__ndim = len(coords.shape) - 1
-        self.__Nx = coords.shape[:3]
+        self.__Nx = coords.shape[:self.__ndim]
         self.__nfields = len(fields.shape) - self.__ndim
         self.__M = np.prod(self.__Nx)
         # assume box starts at (0,0,0) and ends at (lx,ly,lz)
-        if not np.all(self.__coords.ravel()[0:self.__ndim] == np.array([0,0,0])):
+        if not np.all(self.__coords.ravel()[0:self.__ndim] == np.zeros(self.__ndim)):
             raise ValueError("coords[0,0,0] != (0,0,0)")
-        self.__boxl = tuple(self.__coords[-1,-1,-1]) 
-        self.__boxh = tuple(self.__coords[-1,-1,-1]*0.5) 
-        self.__gridspacing = (self.__coords[1,0,0][0], self.__coords[0,1,0][1], self.__coords[0,0,1][2])
+
+        if self.__ndim == 2:
+            self.__boxl = tuple(self.__coords[-1,-1]) 
+            self.__boxh = tuple(self.__coords[-1,-1]*0.5) 
+            self.__gridspacing = (self.__coords[1,0][0], self.__coords[0,1][1])
+        elif self.__ndim == 3:
+            self.__boxl = tuple(self.__coords[-1,-1,-1]) 
+            self.__boxh = tuple(self.__coords[-1,-1,-1]*0.5) 
+            self.__gridspacing = (self.__coords[1,0,0][0], self.__coords[0,1,0][1], self.__coords[0,0,1][2])
 
     def setDensityThreshold(density_threshold):
         self.__density_threshold = density_threshold
-   
+  
+    def getNdim():
+        return self.__ndim
     def getDomainStats(self, plotMesh=False):
         ''' Calculate properties of each of the domains
             return com, surface_area, volume, IQ
         '''
 
         # create boolean selector from density fields for region definition
-        isdomain_array = (self.__fields[:,:,:,self.__density_field_index] > self.__density_threshold)
+        if self.__ndim == 2:
+            isdomain_array = (self.__fields[:,:,self.__density_field_index] > self.__density_threshold)
+        elif self.__ndim == 3:
+            isdomain_array = (self.__fields[:,:,:,self.__density_field_index] > self.__density_threshold)
 
         # FIXME, things break for non-cubic boxes. It must have to do with the vtk vs numpy indexing
 
@@ -69,26 +80,70 @@ class DomainAnalyzer:
         for idomain in range(0,self.__ndomains):
             # calc center of domain
             com[idomain,:] = self.calcDomainCOM(idomain,units='coord')
-            
-            # mesh domain
-            verts, faces, normals, values = self.meshDomain(idomain+1)
+            if self.__ndim == 2:
+                contours = self.meshSingleDomain(idomain+1)
+                assert (len(contours) == 1), "The contour should only be one curve, if not the area and volume calculations will be completely wrong!"
 
-            # get surface area, volume and isoperimetric quotient
-            surface_area[idomain] = measure.mesh_surface_area(verts, faces)
+                surface_area[idomain] = self.contour_perimeter(contours[0])
+                volume[idomain] = self.contour_area(contours[0])
+                print(surface_area[idomain])
+                print(volume[idomain])
+                if plotMesh: 
+                    self.plotContours2D(contours)
 
-            volume[idomain] = self.mesh_volume(verts,faces)
+            if self.__ndim == 3: 
+                # mesh domain
+                verts, faces, normals, values = self.meshSingleDomain(idomain+1)
+
+                # get surface area, volume and isoperimetric quotient
+                surface_area[idomain] = measure.mesh_surface_area(verts, faces)
+                volume[idomain] = self.mesh_volume(verts,faces)
+
+                if plotMesh: 
+                    self.plotMesh3D(verts,faces, filename="mesh.{}.png".format(idomain+1))
 
             IQ[idomain] = self.calcIQ(surface_area[idomain], volume[idomain])
             
-            if plotMesh: 
-                self.plotMesh(verts,faces, "mesh.{}.png".format(idomain+1))
 
         return self.__ndomains, com, surface_area, volume, IQ
     
     def calcIQ(self, area, vol):
-        return 36.0*np.pi * vol*vol / (area * area * area)
+        '''returns isoperimetric coefficient. 1 for perfect circle or sphere, less for other shapes
+           note that in 2d "area" is actually perimeter, and "vol" is actually area
+           This difference didn't seem to warrant a completely different method though
+        '''
+        if self.__ndim == 2:
+            return 4.0*np.pi*vol / (area * area)
+        elif self.__ndim == 3:
+            return 36.0*np.pi * vol*vol / (area * area * area)
 
-    def meshDomain(self,idomain):
+    def meshAllDomains(self,datafile=None,plotfile=None):
+        ''' Mesh all domains using marching cubes or marching squares
+            Options:
+            - Save plot of mesh to plotfile if specified
+            - save mesh data to file if specified
+
+
+        '''
+        if self.__ndim == 2:
+            mydensity = self.__fields[:,:, self.__density_field_index]
+            contours = measure.find_contours(mydensity, self.__density_threshold) 
+            if datafile:
+                self.writeContours(contours,datafile)
+            if plotfile:
+                self.plotContours2D(contours,surface=mydensity,filename=plotfile)
+
+        elif self.__ndim == 3:
+            mydensity = self.__fields[:,:,:, self.__density_field_index]
+            verts, faces, normals, values = measure.marching_cubes_lewiner(mydensity, self.__density_threshold, spacing = self.__gridspacing)
+            if datafile:
+                raise NotImplementedError("Support for writing 3D mesh not implemented")
+            if filename:
+                self.plotMesh3D(verts,faces,filename=filename)
+            return verts,faces, normals, values
+
+
+    def meshSingleDomain(self,idomain):
         '''
         Function to:
         1) apply PBC to the domains so that an entire domain is continuous (ie not split across boundaries)
@@ -103,7 +158,10 @@ class DomainAnalyzer:
         
         # center box and properties around center of mass (so that domains don't cross pbc)
         # np.roll is the key function here
-        alldensity = self.__fields[:,:,:, self.__density_field_index]
+        if self.__ndim == 2:
+            alldensity = self.__fields[:,:, self.__density_field_index]
+        elif self.__ndim == 3:
+            alldensity = self.__fields[:,:,:, self.__density_field_index]
         #coords_tmp = np.copy(self.__coords)
         for i in range(self.__ndim):
             shift = int(0.5*self.__Nx[i] - com[i])
@@ -134,8 +192,9 @@ class DomainAnalyzer:
 
         # mesh! (using scikit-image)
         if self.__ndim == 2:
-            raise NotImplementedError("Meshing in 2 dimensions is in development")
-            contours = skimage.measure.find_contours(mydensity, self.__density_threshold) 
+            #raise NotImplementedError("Meshing in 2 dimensions is in development")
+            contours = measure.find_contours(mydensity, self.__density_threshold) 
+            return contours
         elif self.__ndim == 3:
             #from skimage import measure
             verts, faces, normals, values = measure.marching_cubes_lewiner(mydensity, self.__density_threshold, spacing = self.__gridspacing)
@@ -143,8 +202,35 @@ class DomainAnalyzer:
         else:
             raise ValueError("Meshing makes no sense in 1 dimension!")
 
+    def contour_perimeter(self,contour):
+        '''calculate perimeter of contour by suming up the line-segment lengths
+        '''
+        #TODO vectorize this for loop
+        p = 0.0
+        n=contour.shape[0]
+        for i in range(n-1):
+           v = contour[i+1] - contour[i] 
+           p += np.square(v).sum()
+        return p
+
+    def contour_area(self,contour):
+        ''' Calculate area of shape enclosed in contour
+            similar to calculating mesh volume
+            use trick from http://geomalgorithms.com/a01-_area.html
+        '''
+        assert (np.all(contour[0] == contour[-1])), "Contour must be closed! (1st point == last point)"
+        
+        #TODO vectorize this for loop
+        area = 0.0
+        n=contour.shape[0]
+        for i in range(n-1):
+            area += np.cross(contour[i],contour[i+1])
+        return 0.5*np.abs(area)
+
 
     def mesh_volume(self, verts, faces):
+        '''calculate volume of a mesh, using cross product trick
+        '''
         actual_verts = verts[faces]
         v0 = actual_verts[:,0,:]
         v1 = actual_verts[:,1,:]
@@ -152,7 +238,43 @@ class DomainAnalyzer:
         # 1/6 \sum v0 \cdot (v1 x v2)
         return 1.0/6.0 * np.abs( (v0*np.cross(v1,v2)).sum(axis=1).sum() )
  
-    def plotMesh(self, verts, faces, filename=None):
+    def writeContours(self, contours,filename):
+        ''' write contours to data files
+            The format is built for using the gnuplot command "plot 'file' index 0 u 1:2"
+            Each individual contor is plotted in two x,y columns
+            Each contour is separated by two new lines (see gnuplot "index" for explanation)
+        '''
+        with open(filename,'wb') as f:
+            f.write(b"# NContours = %d\n" % len(contours))
+            for contour in contours:
+                #np.savetxt(f,contour,footer='\n',comments='')
+                np.savetxt(f,contour)
+                f.write(b"\n\n")
+
+    def plotContours2D(self, contours, surface=None, filename=None):
+        ''' Plot a mesh from marching squares
+        '''
+        import matplotlib.pyplot as plt
+
+        # Display the image and plot all contours found
+        fig, ax = plt.subplots()
+        if surface is not None:
+            #ax.imshow(surface.T, interpolation='nearest', cmap=plt.cm.gray)
+            ax.imshow(surface.T, interpolation='nearest')
+
+        for n, contour in enumerate(contours):
+            ax.plot(contour[:, 0], contour[:, 1], linewidth=2)
+
+        #ax.axis('image')
+        #ax.set_xticks([])
+        #ax.set_yticks([])
+        if not filename:
+            plt.show()
+        else:
+            plt.savefig(filename)
+        plt.close()
+
+    def plotMesh3D(self, verts, faces, filename=None):
         ''' Plot a mesh from marching cubes
         '''
         import matplotlib.pyplot as plt
