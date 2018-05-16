@@ -47,6 +47,16 @@ class DomainAnalyzer:
             self.__boxh = tuple(self.__coords[-1,-1,-1]*0.5) 
             self.__gridspacing = (self.__coords[1,0,0][0], self.__coords[0,1,0][1], self.__coords[0,0,1][2])
 
+        # check if density field is reasonable between 0-1, if not throw warning
+        if self.__ndim == 2:
+            mindensity= np.min(self.__fields[:,:,self.__density_field_index])
+            maxdensity= np.max(self.__fields[:,:,self.__density_field_index])
+        elif self.__ndim == 3:
+            mindensity= np.min(self.__fields[:,:,:,self.__density_field_index])
+            maxdensity= np.max(self.__fields[:,:,:,self.__density_field_index])
+        if maxdensity > 1.0 or mindensity < 0.0:
+            print("Warning: The density field is not between 0-1 (min: {}, max: {}). The specified threshold of {} might be inappropriate.".format(mindensity,maxdensity,self.__density_threshold))
+
         self.__needToIndexDomains = True
 
     def setDensityThreshold(density_threshold):
