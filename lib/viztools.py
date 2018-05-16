@@ -50,33 +50,51 @@ def isOrthorhombic(AllCoords):
         if AllCoords[0,1][1] != 0 or AllCoords[1,0][0] != 0:
             return False
     if ndim == 3:
-        if AllCoords[0,0,1][1] != 0 or AllCoords[0,0,1][2] != 0:
+        if AllCoords[1,0,0][1] != 0 or AllCoords[1,0,0][2] != 0:
             return False
         if AllCoords[0,1,0][0] != 0 or AllCoords[0,1,0][2] != 0:
             return False
-        if AllCoords[1,0,0][0] != 0 or AllCoords[1,0,0][1] != 0:
+        if AllCoords[0,0,1][0] != 0 or AllCoords[0,0,1][1] != 0:
             return False
     return True
 
 
 
 #def writeVTK(outfile, Nx, orthorhombic, M, AllCoords, AllFields):
-def writeVTK(outfile, AllCoords, AllFields):
+def writeVTK(outfile, AllCoords, AllFields,binary=False):
 
     ndim = len(AllCoords.shape) - 1
     Nx = AllCoords.shape[:ndim]
     orthorhombic = isOrthorhombic(AllCoords)
     M = np.prod(Nx)
     nfields = AllFields.shape[-1]
+
+    # get mesh spacing
+    if orthorhombic == True:
+        if ndim == 1:
+            spacing = (AllCoords[1][0])
+        if ndim == 2:
+            spacing = (AllCoords[1,0][0], AllCoords[0,1][1])
+        if ndim == 3:
+            spacing = (AllCoords[1,0,0][0], AllCoords[0,1,0][1], AllCoords[0,0,1][2])
+        logging.info("Mesh spacing       {}".format(spacing))
     
     #FIXME if nfields is only 1 then reshape
     #if nfields == 1:
     #    AllFields = np.reshape(AllFields,(len(AllFields),1))
 
+    if binary:
+        raise NotImplementedError("Implementation started but not tested and complete...")
+
     AllCoords = np.ravel(AllCoords)
     AllCoords = np.reshape(AllCoords,(M,ndim ))
     AllFields = np.ravel(AllFields)
     AllFields = np.reshape(AllFields,(M,nfields))
+
+    # if 2D, set 3rd dimension to zero
+    if ndim==2: 
+        AllCoords = np.hstack((AllCoords,np.zeros((M,1))))
+
 
     # dont need to do this anymore? can just used np to ravel and "order" option?
     ## Generate the mapping from PolyFTS (z fastest in 3D) to VTK (x fastest)
@@ -91,21 +109,6 @@ def writeVTK(outfile, AllCoords, AllFields):
     # Write Legacy VTK file.
     o = open(outfile,"w")
     
-    # get mesh spacing
-    if orthorhombic == True:
-        spacing = [None]*ndim
-        if ndim == 1:
-            spacing[0] = AllCoords[0][1]
-        if ndim == 2:
-            spacing[0] = AllCoords[0][Nx[1]]
-            spacing[1] = AllCoords[1][1]
-        if ndim == 3:
-            spacing[0] = AllCoords[0][Nx[1]*Nx[2]]
-            spacing[1] = AllCoords[1][Nx[2]]
-            spacing[2] = AllCoords[2][1]
-        logging.info("Mesh spacing       {}".format(spacing))
-  
-  
     if orthorhombic:
         o.write("# vtk DataFile Version 3.0\n")
         o.write("PolyFTS field data\n")
@@ -133,7 +136,10 @@ def writeVTK(outfile, AllCoords, AllFields):
     else:
       o.write("# vtk DataFile Version 3.0\n")
       o.write("PolyFTS field data\n")
-      o.write("ASCII\n")
+      if binary:
+          o.write("BINARY\n")
+      else:
+          o.write("ASCII\n")
       o.write("DATASET STRUCTURED_GRID\n")
       if ndim == 1:
           o.write("DIMENSIONS {} 1 1\n".format(*Nx))
@@ -141,12 +147,15 @@ def writeVTK(outfile, AllCoords, AllFields):
           o.write("DIMENSIONS {} {} 1\n".format(*Nx))
       elif ndim == 3:
           o.write("DIMENSIONS {} {} {}\n".format(*Nx))
-      o.write("POINTS {} float\n".format(M))
+      o.write("POINTS {} double\n".format(M))
       # Remap the mesh coordinates to VTK order
       AllCoords = AllCoords[:,IdxMap]
       #np.savetxt('coords.dat',AllCoords.transpose()) # Debug
       o.close(); o = open(outfile,'ab')
-      np.savetxt(o, AllCoords.transpose(), fmt="%0.11f")
+      if binary:
+          AllCoords.transpose().tofile(o)
+      else:
+          np.savetxt(o, AllCoords.transpose(), fmt="%0.11f")
       o.close(); o = open(outfile,'a')
 
       o.write("\nPOINT_DATA {0}\n".format(M))
@@ -159,11 +168,14 @@ def writeVTK(outfile, AllCoords, AllFields):
           #np.savetxt(o, np.vstack([AllCoords,AllFields[i]]).transpose(), fmt="%14.11f")
 
           # write as vector
-          o.write("VECTORS field{0} float\n".format(i)) #writing as vector fixed the seg fault
+          o.write("VECTORS field{0} double\n".format(i)) #writing as vector fixed the seg fault
           tmp=np.zeros((3,M))
           tmp[0,:] = AllFields[i]
           o.close(); o = open(outfile,'ab')
-          np.savetxt(o, tmp.transpose(), fmt="%14.11f")
+          if binary:
+              tmp.transpose().tofile(o)
+          else:
+              np.savetxt(o, tmp.transpose(), fmt="%14.11f")
           o.close(); o = open(outfile,'a')
     o.close()
   
