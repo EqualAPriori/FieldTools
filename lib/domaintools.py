@@ -34,6 +34,8 @@ class DomainAnalyzer:
         self.__Nx = coords.shape[:self.__ndim]
         self.__nfields = len(fields.shape) - self.__ndim
         self.__M = np.prod(self.__Nx)
+
+
         # assume box starts at (0,0,0) and ends at (lx,ly,lz)
         if not np.all(self.__coords.ravel()[0:self.__ndim] == np.zeros(self.__ndim)):
             raise ValueError("coords[0,0,0] != (0,0,0)")
@@ -42,10 +44,24 @@ class DomainAnalyzer:
             self.__boxl = tuple(self.__coords[-1,-1]) 
             self.__boxh = tuple(self.__coords[-1,-1]*0.5) 
             self.__gridspacing = (self.__coords[1,0][0], self.__coords[0,1][1])
+            self.__hvoxel = np.array([coords[1,0],coords[0,1]])
         elif self.__ndim == 3:
             self.__boxl = tuple(self.__coords[-1,-1,-1]) 
             self.__boxh = tuple(self.__coords[-1,-1,-1]*0.5) 
             self.__gridspacing = (self.__coords[1,0,0][0], self.__coords[0,1,0][1], self.__coords[0,0,1][2])
+            self.__hvoxel = np.array([coords[1,0,0],coords[0,1,0],coords[0,0,1]])
+        self.__hcell = self.__hvoxel * self.__Nx
+        self.__volvoxel = np.linalg.det(self.__hvoxel)
+        assert (np.abs(self.__volvoxel - np.linalg.det(self.__hcell) / self.__M) < 1e-5), "Volume of voxel != (Volume of cell / n voxels). This should be true!"
+
+        # check if orthorhombic
+        self.__orthorhombic = True
+        hnorm = self.__hcell /  np.linalg.norm(self.__hcell, axis=0)
+        if self.__ndim == 2 and np.dot(hnorm[0],hnorm[1]) != 0:
+            self.__orthorhombic = False
+        elif self.__ndim == 3 :
+            if np.dot(hnorm[0],[1,0,0]) != 0 or np.dot(hnorm[1],[0,1,0]) != 0 or np.dot(hnorm[2],[0,0,1]) != 0:
+                self.__orthorhombic = False
 
         # check if density field is reasonable between 0-1, if not throw warning
         if self.__ndim == 2:
@@ -85,6 +101,10 @@ class DomainAnalyzer:
 
         '''
 
+        if useMesh and not self.__orthorhombic: 
+            print("Warning: computing volume using mesh, but cell is not orthorhombic. This will lead to errors in the surface areas calculation of the domains")
+
+
         # create boolean selector from density fields for region definition
         if self.__ndim == 2:
             isdomain_array = (self.__fields[:,:,self.__density_field_index] > self.__density_threshold)
@@ -113,6 +133,7 @@ class DomainAnalyzer:
             com[idomain,:] = self.calcDomainCOM(idomain,units='coord')
             
             if useMesh:
+
                 if self.__ndim == 2:
                     # mesh domain
                     contours = self.meshSingleDomain(idomain+1)
@@ -123,7 +144,7 @@ class DomainAnalyzer:
                     volume[idomain] = self.contour_area(contours[0])
 
                     if plotMesh: 
-                        self.plotContours2D(contours)
+                        self.plotContours2D(contours,filename="mesh.{}.png".format(idomain+1))
 
                 if self.__ndim == 3: 
                     # mesh domain
@@ -273,13 +294,24 @@ class DomainAnalyzer:
         v0 = actual_verts[:,0,:]
         v1 = actual_verts[:,1,:]
         v2 = actual_verts[:,2,:]
+       
+        # TODO: dont do the volume rescaling here, instead change the actual position of "verts" in getDomainStats my scaling each vert position by h (or something along these lines)
+
+        # introduce factor to scale the volume if non-orthorhombic box
+        # this is because the mesh is generated assuming a
+        if self.__orthorhombic:
+            factor=1.0
+        else:
+            factor = self.__volvoxel / np.prod(self.__gridspacing)
+
         # 1/6 \sum v0 \cdot (v1 x v2)
-        return 1.0/6.0 * np.abs( (v0*np.cross(v1,v2)).sum(axis=1).sum() )
+        return factor * 1.0/6.0 * np.abs( (v0*np.cross(v1,v2)).sum(axis=1).sum() )
 
     def voxel_volume(self,idomain):
         ''' Get volume of idomain using voxels
         '''
-        v_voxel = np.prod(self.__gridspacing) # volume of single voxel
+        #v_voxel = np.prod(self.__gridspacing) # volume of single voxel
+        v_voxel = self.__volvoxel
         n_voxel = np.sum(self.__regionID == idomain) # number of voxels in ith domain
         return v_voxel*n_voxel
  
