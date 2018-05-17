@@ -211,7 +211,10 @@ class DomainAnalyzer:
         '''
         
         isdomain = (self.__regionID == idomain)
-        isborder = (self.__borderID == idomain)
+        #isborder = (self.__borderID == idomain)
+        isborder = np.zeros(self.__Nx,dtype=np.bool)
+        # convert to tuple to correctly set indicies of isborder
+        isborder[tuple(self.__regionBorder[idomain-1])] = True
 
         com = self.calcDomainCOM(idomain,units='box')
         
@@ -415,11 +418,13 @@ class DomainAnalyzer:
                       - isborder (whether a grid is adjacent to a domain)
         '''
         # if regionID == -1, it has not been visited
-        #M = np.size(isdomain_array)
+
         self.__regionID = np.full(self.__Nx,-1,dtype=np.int32);
-        self.__borderID = np.full(self.__Nx,0,dtype=np.int32);
+        # image_flags are only for the domains themselves, the image flags of the border are not needed
         self.__image_flags = np.zeros(list(self.__Nx) + [self.__ndim])
+        ###self.__borderID = np.full(self.__Nx,0,dtype=np.int32);
         
+        self.__regionBorder = [[]]
 
         region_number = 1;
 
@@ -429,14 +434,28 @@ class DomainAnalyzer:
             if (isdomain_array[i]):
               current_image_flag = np.zeros(self.__ndim)
               self.spread_region(i, region_number, isdomain_array,current_image_flag);
+              self.__regionBorder.append([])
               region_number += 1;
             else:
               # note - dont assign borders here, this is acomplished inside of spread_region()
               self.__regionID[i] = 0;
               self.__image_flags[i]= np.zeros(self.__ndim)
-
+        
+        # now cleaning up
         nregions = region_number-1;
+        
+        # remove last element from lists (should be empty)
+        assert (self.__regionBorder[-1] == [])
+        del self.__regionBorder[-1] 
+        
+        # check that lengths of region structs are correct
+        assert (len(self.__regionBorder) == nregions)
 
+        # convert border and imageflag lists to numpy arrays
+        for i in range(nregions):
+            self.__regionBorder[i] = np.array(self.__regionBorder[i]).transpose()
+       
+        # change caching flag
         self.__needToIndexDomains = False
         return nregions
         
@@ -454,7 +473,7 @@ class DomainAnalyzer:
 
         for i in range(len(neighbors)):
             neighbor = neighbors[i]
-            image_flag = neigh_image_flags[i]
+            image_flag = tuple(neigh_image_flags[i])
             if (self.__regionID[neighbor] == -1):
                 if (isdomain_array[neighbor]):
                   self.spread_region(neighbor, region_number, isdomain_array, image_flag);
@@ -463,27 +482,17 @@ class DomainAnalyzer:
                   
 
             if self.__regionID[neighbor] == 0:
-              # must have neighbors that are domain (since spread region is only called 
-              #   if coord_center is a domain). Therefore, it's a border
-              if self.__borderID[neighbor] != 0 and self.__borderID[neighbor] != region_number:
-                raise RuntimeError("Trying to set borderID[{0}]={1} but is it is already set to {2}".format(neighbor, region_number, self.__borderID[neighbor]))
-                #print("Trying to set borderID[{0}]={1} but is it is already set to {2}".format(neighbor, region_number, self.__borderID[neighbor]))
-              self.__borderID[neighbor] = region_number
- 
-              # set image flags of non-domain adjacent to domain according to the domain
-              # basically, I need the border to have the correct image flags
-
-              # this will override whatever image_flag was set before, generally this shouldnt be a 
-              #   problem unless two domains are very close to each other and their borders overlap
-              #   Raise and error just in case...
-              #   make sure, not (0,0,0) and not new == old
-              if not np.all(self.__image_flags[neighbor]==0) and not np.all(self.__image_flags[neighbor] == image_flag):
-                raise RuntimeError("Tried to set image_flag of {0} to {2} but it was already set \
-                    to {1} and not (0,0,0)".format(neighbor,self.__image_flags[neighbor], image_flag))
-                #print("Tried to set image_flag of {0} to {2} but it was already set \
-                #    to {1} and not (0,0,0)".format(neighbor,self.__image_flags[neighbor], image_flag))
               
-              self.__image_flags[neighbor] = image_flag
+              # only append to list if neighbor isn't in there already
+              if neighbor not in self.__regionBorder[region_number-1]:
+                  # must have neighbors that are domain (since spread region is only called 
+                  #   if coord_center is a domain). Therefore, it's a border
+                  self.__regionBorder[region_number-1].append(neighbor)
+
+                  # set image flags of non-domain adjacent to domain according to the domain
+                  # basically, I need the border to have the correct image flags
+                  # NOTE: image flags of borders aren't used anymore
+                  #self.__regionBorderImageFlags[region_number-1].append(image_flag)
 
        
     def getNeighbors(self,coord_center,center_image_flag=[]):
