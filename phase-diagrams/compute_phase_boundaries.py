@@ -135,6 +135,29 @@ class PhaseBoundaryHolder:
                 #ax.plot(x,y,color=mycolor,marker=mymarker,linewidth=3,markersize=4)
                 ax.plot(x,y,linewidth=2,color=mycolor,marker=mymarker,label=mylabel)
 
+    def write(self,filename):
+        
+        f = open(filename,'wb')
+        f.write("# raw data for phase boundaries. Formatted for gnuplot, though pretty self explanatory\n")
+
+        n = len(self.boundaries)
+        for i in range(n):
+            lines = self.boundaries[i].get_linesegments()
+            for j in range(len(lines)):
+                if j==0:
+                    f.write(b"#%s-%s\n" % (self.boundaries[i].phaseA, self.boundaries[i].phaseB))
+                else:      
+                    mylabel = ""
+                x = lines[j][:,0]
+                y = lines[j][:,1]
+                data =np.vstack((x,y)).T
+                np.savetxt(f,data,fmt="%0.8f")
+            f.write(b"\n\n")
+                #ax.plot(x,y,color=mycolor,marker=mymarker,linewidth=3,markersize=4)
+
+        f.close()
+
+
     def plot(self,filename,plottype,nodes=None,xlabel='',ylabel='',axisrange=[None,None,None,None]):
 
         plt.rcParams['axes.labelsize'] = 16
@@ -364,6 +387,7 @@ def compare_node_pos(nodeA, nodeB,dim_to_ignore=-1):
         elif nodeA.pos[i] != nodeB.pos[i]: match = False
     return match 
 
+
 def interpolate_nodes(nodeA, nodeB, dim):
 
     # linear interpolate to get phase boundary
@@ -391,14 +415,14 @@ def interpolate_nodes(nodeA, nodeB, dim):
     p2 = (nodeB.pos[dim], nodeB.get_phase_F(min_phaseA))
     p3 = (nodeA.pos[dim], nodeA.get_phase_F(min_phaseB))
     p4 = (nodeB.pos[dim], nodeB.get_phase_F(min_phaseB))
-
+    
     lineA = linesegment(p1,p2)
     lineB = linesegment(p3,p4)
     pos_boundary_dim,F_boundary = intersection(lineA,lineB)
-
     
     pos_boundary = list(nodeA.pos)
     pos_boundary[dim] = pos_boundary_dim
+
     return tuple(pos_boundary)
 
 def plot_node_connectivity(nodes):
@@ -570,7 +594,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Tool to compute phase boundaries')
     parser.add_argument('-f', '--filename', action='store', default='F0_phases.dat',help='file that contains the phases and free energies at each phase point')
     parser.add_argument('-d', '--dirs', action='store', nargs='+', default=glob.glob("tau*/phiA*"),help='list of directories that contain each phase point')
-    parser.add_argument('-o', '--outfile', action='store', default='',help='name of output figure file')
+    parser.add_argument('-o', '--outfig', action='store', default='',help='name of output figure file')
+    parser.add_argument('--raw', action='store', default='',help='name of raw output file (for plotting in another program')
     parser.add_argument('-t', '--plottype', action='store', default='nodes',help='type of plot to generate')
     parser.add_argument('--xlabel', action='store', default="$f_A$",help='label for xaxis, can use \'$\' to write latex')
     parser.add_argument('--ylabel', action='store', default="$\chi N$",help='')
@@ -594,8 +619,12 @@ if __name__ == '__main__':
     #boundaryholder.plot_plain("fig_boundaries.png")
     #boundaryholder.plot_heatmaps(nodes)
     #plot_node_connectivity(nodes)
+    if args.raw != '':
+        print "Saving raw phase boundary data to \'%s\'" % args.raw
+        boundaryholder.write(args.raw)
+
     print "Plotting with type \'%s\'" % args.plottype
-    boundaryholder.plot(args.outfile,args.plottype, nodes=nodes,xlabel=args.xlabel, ylabel=args.ylabel,axisrange=args.axisrange)
+    boundaryholder.plot(args.outfig,args.plottype, nodes=nodes,xlabel=args.xlabel, ylabel=args.ylabel,axisrange=args.axisrange)
 
 
 
