@@ -337,7 +337,8 @@ class Node:
         for i in range(len(self.F)):
             if abs(self.F[i] - self.F[DIS_idx]) > self.F_THRESHOLD:
                 flag = False
-        self.is_all_DIS = flag
+        self.is_all_DIS = flag; 
+		#self.phases[DIS_idx] = 'sDIS' # change name to spinodal DIS (sDIS)
         
     def get_phase_F(self,phase):
         return self.F[self.get_phase_index(phase)]
@@ -348,8 +349,14 @@ class Node:
         return self.F[idx]
 
     def get_min_phase(self):
-        idx = self.get_min_idx()
-        return self.phases[idx]
+		idx = self.get_min_idx()
+		return self.phases[idx]
+		#if not self.is_all_DIS:
+		#	idx = self.get_min_idx()
+		#	return self.phases[idx]
+		#else:
+		#	return "sDIS" # if all are dis, then return a different DIS phase
+
     def get_min_idx(self):
         val, idx = min((val, idx) for (idx, val) in enumerate(self.F)) 
 
@@ -565,6 +572,9 @@ def calc_phase_boundaries(nodes):
                     pos_boundary = interpolate_nodes(my_node,up_node,idim)
                     #if ("DIS" in my_phase) or ("DIS" in up_phase):
                     #    my_phase = up_phase = "DIS"
+                    if (my_node.is_all_DIS): my_phase = 'sDIS' # change name to spinodal DIS (sDIS)
+                    if (up_node.is_all_DIS): up_phase = 'sDIS'
+                    if 'DIS' in my_phase and 'DIS' in up_phase:  continue
                     boundaryholder.add_point(my_phase,up_phase,pos_boundary)    
 
             #dn_node  = it.peek_dn(dim=idim)        
@@ -578,11 +588,14 @@ def calc_phase_boundaries(nodes):
                     pos_boundary = interpolate_nodes(my_node,dn_node,idim)
                     #if ("DIS" in my_phase) or ("DIS" in dn_phase):
                     #    my_phase = dn_phase = "DIS"
+                    if (my_node.is_all_DIS): my_phase = 'sDIS' # change name to spinodal DIS (sDIS)
+                    if (dn_node.is_all_DIS): dn_phase = 'sDIS'
+                    if 'DIS' in my_phase and 'DIS' in dn_phase:  continue
                     boundaryholder.add_point(my_phase,dn_phase,pos_boundary)    
 
         my_node.visited = True     
         nvisited += 1;
-        
+    
     return boundaryholder
 
 # ==============================================================================
