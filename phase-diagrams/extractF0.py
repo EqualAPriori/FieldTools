@@ -54,6 +54,7 @@ parser.add_argument('-d', '--dirs', action='store',required=True, nargs='+',help
 parser.add_argument('--ignorephase', action='store',default=[''], nargs='+',help='phases to ignore')
 parser.add_argument('--ignorestatus', action='store', default=[1,3], nargs='+',help='status to ignore')
 parser.add_argument('-f', '--filename', action='store', default='F0_phases.dat',help='file that contains the phases and free energies at each phase point')
+parser.add_argument('--writemin', action='store_true', help='write minimum phase to file')
 args = parser.parse_args()
 
 filename=args.filename
@@ -70,6 +71,8 @@ for mydir in dirs:
     os.chdir(mydir)
     phases=glob.glob("*Phase")
     with open(filename,"w") as f:
+        phaseslist=[]
+        F0list=[]
         for phase in phases:
             wdir=idir+'/'+mydir+"/"+phase
             shortphase=re.sub("Phase","",phase)
@@ -78,5 +81,28 @@ for mydir in dirs:
                     F0 = parseLogForF0("{}/{}.out".format(wdir,shortphase))
                     if F0 != 0.0:
                         f.write("{} {}\n".format(phase,F0))
+                    phaseslist.append(phase)
+                    F0list.append(float(F0))
+
+    #write minphase.dat if flag is set
+    if args.writemin:
+        # now find min phase
+        val, idx = min((val, idx) for (idx, val) in enumerate(F0list))
+
+        # check if all are DIS
+        THRESH=1e-4
+        alldis=True
+        for myF in F0list:
+            if (abs(myF-val) > THRESH):
+               alldis=False
+        if alldis:
+           idx=phaseslist.index('DIS')
+
+        # and output to file
+        ofile="minphase.dat"
+        with open(ofile,'w') as f:
+            phase=phaseslist[idx]
+            shortphase=re.sub("Phase","",phase)
+            f.write("{}".format(shortphase))
+
     os.chdir(idir)
-        
