@@ -59,7 +59,7 @@ args = parser.parse_args()
 
 filename=args.filename
 phases2ignore = [a+"Phase" for a in args.ignorephase ]
-status2ignore = args.ignorestatus
+status2ignore = [int(i) for i in args.ignorestatus]
 dirs=args.dirs
 dirs.sort()
 print("Dirs: {}".format(dirs))
