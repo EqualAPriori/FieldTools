@@ -245,3 +245,184 @@ def calcAllCoords(ndim,Nx,h,M):
     return AllCoords.transpose()
 
 
+def WriteDatFile(outfilename, coords, fields, iskspace = False, iscomplex = False):
+
+    outfilehndl = open(outfilename,'w')
+    Dim = len(coords.shape) - 1
+    nfields = fields.shape[Dim]
+
+    assert(iscomplex==False), "fielddata isn't right if data includes complex, need to fix this"
+
+    if iscomplex: 
+        nfields = int(nfields/2)
+
+    Nx = coords.shape[:Dim]
+    if Dim == 1:
+        griddim = (coords.shape[0],)
+        hvoxel = np.array([coords[1]])
+    elif Dim == 2:
+        griddim = (coords.shape[0], coords.shape[1])
+        hvoxel = np.array([coords[0,1],coords[1,0]])
+    elif Dim == 3:
+        griddim = (coords.shape[0], coords.shape[1],coords.shape[2])
+        hvoxel = np.array([coords[0,0,1],coords[0,1,0],coords[1,0,0]])
+    h = hvoxel * Nx
+    kspacedata = iskspace
+    complexdata = iscomplex
+    M = np.prod(griddim)
+    fielddata = np.ravel(fields,order='F')
+
+    outfilehndl.write("# Format version 3\n")
+    outfilehndl.write("# nfields = {0}\n".format(nfields))
+    outfilehndl.write("# NDim = {0}\n".format(Dim))
+    outfilehndl.write("# PW grid = ")
+    for i in range(Dim):
+        outfilehndl.write("{0} ".format(griddim[i]))
+    outfilehndl.write("\n# k-space data = {0} , complex data = {1}\n".format(int(kspacedata),int(complexdata)))
+    if Dim == 1:
+      if kspacedata:
+        outfilehndl.write("# Columns: kx indxx fielddata\n")
+      else:
+        outfilehndl.write("# Columns: x fielddata\n")
+
+      for ix in range(0,griddim[0]):
+        outfilehndl.write("%16.10g " % coords[ix][0])
+        for n in range(nfields):
+          outfilehndl.write("%16.10g " % fields[ix][n])
+          outfilehndl.write("%16.10g " % fields[ix][n])
+        outfilehndl.write("\n")
+
+      #m=int(0)
+      #l=int(0)
+      #for ix in range(0,griddim[0]):
+      #  l = ix
+      #  if kspacedata and l > griddim[0]/2:
+      #      l = l - griddim[0]
+      #  if not kspacedata:
+      #    xcart = h[0][0] * float(l) / griddim[0]
+      #  else:
+      #    xcart = h[0][0] * float(l)
+      #  if kspacedata:
+      #    outfilehndl.write("%7.4f %d " % (xcart,l))
+      #  else:
+      #    outfilehndl.write("%7.4f " % (xcart))
+
+      #  if not complexdata and not kspacedata:
+      #    for n in range(nfields):
+      #      outfilehndl.write("%16.10g " % (fielddata[m + n*M]))
+      #    outfilehndl.write("\n")
+      #    m = m + 1
+      #  else:
+      #    for n in range(nfields):
+      #      outfilehndl.write("%16.10g %16.10g " % (fielddata[m + n*M*2], fielddata[m + 1 + n*M*2]))
+      #    outfilehndl.write("\n")
+      #    m = m + 2
+
+    elif Dim == 2:
+      if kspacedata:
+          outfilehndl.write("# Columns: kx ky indxx indxy fielddata\n")
+      else:
+          outfilehndl.write("# Columns: x y fielddata\n")
+
+      for ix in range(0,griddim[0]):
+          for iy in range(0,griddim[1]):
+              outfilehndl.write("%7.4f %7.4f " % (coords[ix,iy,0], coords[ix,iy,1]))
+              for n in range(nfields):
+                  outfilehndl.write("%16.10g " % (fields[ix,iy,n]))
+              outfilehndl.write("\n")
+          outfilehndl.write("\n")
+
+      #m=int(0)
+      #lm=[0,0]
+      #for ix in range(0,griddim[0]):
+      #  lm[0] = ix
+      #  if kspacedata and lm[0] > griddim[0]/2:
+      #    lm[0] = lm[0] - griddim[0]
+      #  for iy in range(0,griddim[1]):
+      #    lm[1] = iy
+      #    if kspacedata and lm[1] > griddim[1]/2:
+      #      lm[1] = lm[1] - griddim[1]
+
+      #    xfrac = [float(i) for i in lm]
+      #    if not kspacedata:
+      #      xfrac = np.divide(xfrac,griddim)
+
+      #    xcart = [0., 0.]
+      #    for i in range(Dim):
+      #      for j in range(Dim):
+      #        xcart[j] = xcart[j] + h[i][j]*xfrac[i]
+      #    if kspacedata:
+      #      outfilehndl.write("%7.4f %7.4f %d %d " % (xcart[0], xcart[1], lm[0], lm[1]))
+      #    else:
+      #      outfilehndl.write("%7.4f %7.4f " % (xcart[0], xcart[1]))
+
+      #    if not complexdata and not kspacedata:
+      #      for n in range(nfields):
+      #        outfilehndl.write("%16.10g " % (fielddata[m + n*M]))
+      #      outfilehndl.write("\n")
+      #      m = m + 1
+      #    else:
+      #      for n in range(nfields):
+      #        outfilehndl.write("%16.10g %16.10g " % (fielddata[m + n*M*2], fielddata[m + 1 + n*M*2]))
+      #      outfilehndl.write("\n")
+      #      m = m + 2
+      #  outfilehndl.write("\n")
+
+    elif Dim == 3:
+      if kspacedata:
+        outfilehndl.write("# Columns: kx ky kz indxx indxy indxz fielddata\n")
+      else:
+        outfilehndl.write("# Columns: x y z fielddata\n")
+
+      for ix in range(0,griddim[0]):
+        for iy in range(0,griddim[1]):
+          for iz in range(0,griddim[2]):
+              outfilehndl.write("%7.4f %7.4f %7.4f" % (coords[ix,iy,iz,0], coords[ix,iy,iz,1],coords[ix,iy,iz,2]))
+              for n in range(nfields):
+                  outfilehndl.write("%16.10g " % (fields[ix,iy,iz,n]))
+              outfilehndl.write("\n")
+          outfilehndl.write("\n")
+
+      #m=int(0)
+      #lmn=[0,0,0]
+      #for ix in range(0,griddim[0]):
+      #  lmn[0] = ix
+      #  if kspacedata and lmn[0] > griddim[0]/2:
+      #    lmn[0] = lmn[0] - griddim[0]
+      #  for iy in range(0,griddim[1]):
+      #    lmn[1] = iy
+      #    if kspacedata and lmn[1] > griddim[1]/2:
+      #      lmn[1] = lmn[1] - griddim[1]
+      #    for iz in range(0,griddim[2]):
+      #      lmn[2] = iz
+      #      if kspacedata and lmn[2] > griddim[2]/2:
+      #        lmn[2] = lmn[2] - griddim[2]
+
+      #      xfrac = [float(i) for i in lmn]
+      #      if not kspacedata:
+      #        xfrac = np.divide(xfrac,griddim)
+
+      #      xcart = [0., 0., 0.]
+      #      for i in range(Dim):
+      #        for j in range(Dim):
+      #          xcart[j] = xcart[j] + h[i][j]*xfrac[i]
+      #      if kspacedata:
+      #        outfilehndl.write("%7.4f %7.4f %7.4f %d %d %d " % (xcart[0], xcart[1], xcart[2], lmn[0], lmn[1], lmn[2]))
+      #      else:
+      #        outfilehndl.write("%7.4f %7.4f %7.4f " % (xcart[0], xcart[1], xcart[2]))
+
+      #      if not complexdata and not kspacedata:
+      #        for n in range(nfields):
+      #          outfilehndl.write("%16.10g " % (fielddata[m + n*M]))
+      #        outfilehndl.write("\n")
+      #        m = m + 1
+      #      else:
+      #        for n in range(nfields):
+      #          outfilehndl.write("%16.10g %16.10g " % (fielddata[m + n*M*2], fielddata[m + 1 + n*M*2]))
+      #        outfilehndl.write("\n")
+      #        m = m + 2
+      #  outfilehndl.write("\n")
+
+    outfilehndl.close()
+
+
