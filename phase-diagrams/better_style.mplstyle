@@ -1,0 +1,25 @@
+#Font sizes
+font.size :			18 # regular font size, change this and other fonts will scale
+axes.labelsize : 		x-large
+xtick.labelsize : 		large
+ytick.labelsize : 		large
+legend.fontsize :		small
+
+#Line sizes
+axes.linewidth : 		1.3     
+lines.markersize : 		8.5
+lines.linewidth : 		2.5
+ 
+#Ticks
+
+xtick.top : 			False   
+xtick.bottom : 			True
+ytick.left : 			True   
+ytick.right : 			False  
+ytick.major.size :		10.0
+xtick.major.size :              10.0
+xtick.direction :		in #in out or inout
+ytick.direction :		in #in out or inout
+ytick.major.width    :		1.3    
+xtick.major.width    :		1.3    
+
