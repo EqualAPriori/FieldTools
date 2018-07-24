@@ -3,7 +3,7 @@
 import numpy as np
 from skimage import measure
 import pdb
-import viztools as viz
+#import viztools as viz
 
 '''
     Function to AnalyzeDomains that come out of a PolyFTS simulation
@@ -84,7 +84,7 @@ class DomainAnalyzer:
     def getNdim():
         return self.__ndim
 
-    def getDomainStats(self, useMesh=True, plotMesh=False,add_periodic_domains=True):
+    def getDomainStats(self, useMesh=True, plotMesh=False,add_periodic_domains=False):
         ''' Calculate properties of each of the domains
             return com, surface_area, volume, IQ
 
@@ -165,7 +165,7 @@ class DomainAnalyzer:
                 surface_area[idomain] = -1.0 #FIXME surface_area is currently not calculated if no mesh
                 volume[idomain] = self.voxel_volume(idomain+1) # get volume from voxels
                 IQ[idomain] = 0.0
-        if True:
+        if add_periodic_domains:
             for idomain in range(1,self.__ndomains+1):  
                 extracom = self.pbc_domain_locs(idomain,com[idomain-1])
                 if extracom:
@@ -174,7 +174,6 @@ class DomainAnalyzer:
                     IQ = np.concatenate((IQ,[IQ[idomain-1]]*extra_num)) 
                     surface_area = np.concatenate((surface_area,[surface_area[idomain-1]]*extra_num)) 
                     volume = np.concatenate((volume,[volume[idomain-1]]*extra_num)) 
-        print(com)
         return self.__ndomains, com, surface_area, volume, IQ
     
     def calcIQ(self, area, vol):
@@ -403,10 +402,6 @@ class DomainAnalyzer:
         N = np.sum(isdomain)
         indicies = np.transpose(np.nonzero(isdomain))
         
-        # for trenton
-#        viz.writeVTK('image_flags.vtk',self.__coords,self.__image_flags)
-#        ID_tmp = np.expand_dims(self.__regionID,axis=self.__ndim)
-#        viz.writeVTK('domains.vtk',self.__coords,ID_tmp)
         coords = np.zeros((N,self.__ndim))
 
         #TODO could I do this without for loop? (will be faster)
@@ -559,7 +554,7 @@ class DomainAnalyzer:
         unique_flags.remove((0,0,0))#remove duplicate com
         for flag in unique_flags:
             flag = np.array(flag)
-            new_com = -1*flag+local_com
+            new_com = -1*flag*self.__boxl+local_com
             #find the location of the extra periodic com by adding the box length times the flag to the current com 
             extra_com.append(new_com)
             num_extra = len(extra_com)
