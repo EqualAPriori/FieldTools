@@ -3,6 +3,7 @@
 import numpy as np
 from skimage import measure
 import pdb
+import viztools as viz
 
 '''
     Function to AnalyzeDomains that come out of a PolyFTS simulation
@@ -83,7 +84,7 @@ class DomainAnalyzer:
     def getNdim():
         return self.__ndim
 
-    def getDomainStats(self, useMesh=True, plotMesh=False):
+    def getDomainStats(self, useMesh=True, plotMesh=False,add_periodic_domains=True):
         ''' Calculate properties of each of the domains
             return com, surface_area, volume, IQ
 
@@ -99,8 +100,9 @@ class DomainAnalyzer:
             useMesh == False uses the less accurate approach of summing over the voxels to get the volume and area
                the volume is still pretty accurate, the area...well, I'm not even going to implement it since in CL I only want volume
 
-        '''
+            add periodic comains = true adds a center for mass at each of the locations for each periodic domain
 
+        '''
         if useMesh and not self.__orthorhombic: 
             print("Warning: computing volume using mesh, but cell is not orthorhombic. This will lead to errors in the surface areas calculation of the domains")
 
@@ -130,7 +132,7 @@ class DomainAnalyzer:
         #for each domain
         for idomain in range(0,self.__ndomains):
             # calc center of domain
-            com[idomain,:] = self.calcDomainCOM(idomain,units='coord')
+            com[idomain,:] = self.calcDomainCOM(idomain+1,units='coord')
             
             if useMesh:
 
@@ -163,7 +165,16 @@ class DomainAnalyzer:
                 surface_area[idomain] = -1.0 #FIXME surface_area is currently not calculated if no mesh
                 volume[idomain] = self.voxel_volume(idomain+1) # get volume from voxels
                 IQ[idomain] = 0.0
-
+        if True:
+            for idomain in range(1,self.__ndomains+1):  
+                extracom = self.pbc_domain_locs(idomain,com[idomain-1])
+                if extracom:
+                    com = np.concatenate((com,extracom))
+                    extra_num = len(extracom)
+                    IQ = np.concatenate((IQ,[IQ[idomain-1]]*extra_num)) 
+                    surface_area = np.concatenate((surface_area,[surface_area[idomain-1]]*extra_num)) 
+                    volume = np.concatenate((volume,[volume[idomain-1]]*extra_num)) 
+        print(com)
         return self.__ndomains, com, surface_area, volume, IQ
     
     def calcIQ(self, area, vol):
@@ -197,8 +208,8 @@ class DomainAnalyzer:
             verts, faces, normals, values = measure.marching_cubes_lewiner(mydensity, self.__density_threshold, spacing = self.__gridspacing)
             if datafile:
                 raise NotImplementedError("Support for writing 3D mesh not implemented")
-            if filename:
-                self.plotMesh3D(verts,faces,filename=filename)
+            if plotfile:
+                self.plotMesh3D(verts,faces,filename=plotfile)
             return verts,faces, normals, values
 
 
@@ -239,18 +250,21 @@ class DomainAnalyzer:
         mydensity[isdomain_or_isborder] = alldensity[isdomain_or_isborder]
 
         # plot for debugging
-        #import PolyFTS_to_VTK
-        #AllCoords = np.reshape(coords_tmp,(self.__M, self.__ndim))
-        #AllCoords = AllCoords.T
-        #tmp = np.ravel(isdomain)
-        #tmp = np.resize(tmp,(1,len(tmp)))
-        #PolyFTS_to_VTK.writeVTK("isdomain.vtk", self.__Nx, True, self.__M, AllCoords,tmp)
-        #tmp = np.ravel(isborder)
-        #tmp = np.resize(tmp,(1,len(tmp)))
-        #PolyFTS_to_VTK.writeVTK("isborder.vtk", self.__Nx, True, self.__M, AllCoords,tmp)
-        #tmp = np.ravel(mydensity)
-        #tmp = np.resize(tmp,(1,len(tmp)))
-        #PolyFTS_to_VTK.writeVTK("mydensity.vtk", self.__Nx, True, self.__M, AllCoords,tmp)
+      #  import sys
+      #  sys.path.append('/home/trent/Documents/college/polymers/ResearchTools/plot/')
+      #  sys.path.append('../../')
+      #  import PolyFTS_to_VTK
+      #  AllCoords = np.reshape(coords_tmp,(self.__M, self.__ndim))
+      #  AllCoords = AllCoords.T
+      #  tmp = np.ravel(isdomain)
+      #  tmp = np.resize(tmp,(1,len(tmp)))
+      #  PolyFTS_to_VTK.writeVTK("isdomain.vtk", self.__Nx, True, self.__M, AllCoords,tmp)
+      #  tmp = np.ravel(isborder)
+      #  tmp = np.resize(tmp,(1,len(tmp)))
+      #  PolyFTS_to_VTK.writeVTK("isborder.vtk", self.__Nx, True, self.__M, AllCoords,tmp)
+      #  tmp = np.ravel(mydensity)
+      #  tmp = np.resize(tmp,(1,len(tmp)))
+      #  PolyFTS_to_VTK.writeVTK("mydensity.vtk", self.__Nx, True, self.__M, AllCoords,tmp)
 
         # mesh! (using scikit-image)
         if self.__ndim == 2:
@@ -385,12 +399,14 @@ class DomainAnalyzer:
         ''' given a domain index, apply PBC and return the center of mass
             Can return result in 'box' units (0 to Nx) or in 'coord' units (0 to boxl)
         '''
-
         isdomain = (self.__regionID == idomain)
         N = np.sum(isdomain)
         indicies = np.transpose(np.nonzero(isdomain))
         
-        
+        # for trenton
+#        viz.writeVTK('image_flags.vtk',self.__coords,self.__image_flags)
+#        ID_tmp = np.expand_dims(self.__regionID,axis=self.__ndim)
+#        viz.writeVTK('domains.vtk',self.__coords,ID_tmp)
         coords = np.zeros((N,self.__ndim))
 
         #TODO could I do this without for loop? (will be faster)
@@ -528,4 +544,24 @@ class DomainAnalyzer:
          if coord[i] < 0:             
              coord[i] = self.__Nx[i] - 1
              image_flag[i] -= 1
+    
+
+    def pbc_domain_locs(self,idomain,local_com):
+        '''This function returns the locations of the other domains on the periodic boundary.  
+        for example for a domain with its center on the corner of the box, it would return all
+        the other box corners'''
+        extra_com = []
+        domain = (self.__regionID == idomain)
+        local_flags = self.__image_flags[domain]
+        unique_flags = set([])
+        for i in range(np.shape(local_flags)[0]):
+            unique_flags.add(tuple(local_flags[i]))
+        unique_flags.remove((0,0,0))#remove duplicate com
+        for flag in unique_flags:
+            flag = np.array(flag)
+            new_com = -1*flag+local_com
+            #find the location of the extra periodic com by adding the box length times the flag to the current com 
+            extra_com.append(new_com)
+            num_extra = len(extra_com)
+        return extra_com
             
