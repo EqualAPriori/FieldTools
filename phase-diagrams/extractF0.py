@@ -132,11 +132,12 @@ parser.add_argument('-f', '--filename', action='store', default='F0_phases.dat',
 parser.add_argument('-t','--fraction_tolerance',action='store',default=0.005,help='Tolerance on rounding of the weight fraction, values where the rounding is greater than this value will be excluded')
 parser.add_argument('-p','--phi_species_num',action='store',default=0,help='The species number used to check that the number fraction (phiA) is correct. The default is 0 (the first species) enter -1 to skip this check')
 parser.add_argument('-v','--verbose',action='count',help='Make the ouput of the script verbose, will show found phi values')
+parser.add_argument('--writemin', action='store_true', help='write minimum phase to file')
 args = parser.parse_args()
 
 filename=args.filename
 phases2ignore = [a+"Phase" for a in args.ignorephase ]
-status2ignore = args.ignorestatus
+status2ignore = [int(i) for i in args.ignorestatus]
 dirs=args.dirs
 dirs.sort()
 if args.verbose:
@@ -156,6 +157,8 @@ for mydir in dirs:
     os.chdir(mydir)
     phases=glob.glob("*Phase")
     with open(filename,"w") as f:
+        phaseslist=[]
+        F0list=[]
         for phase in phases:
             wdir=idir+'/'+mydir+"/"+phase
             shortphase=re.sub("Phase","",phase)
@@ -165,5 +168,28 @@ for mydir in dirs:
                         F0 = parseLogForF0("{}/{}.out".format(wdir,shortphase))
                         if F0 != 0.0:
                             f.write("{} {}\n".format(phase,F0))
+                            phaseslist.append(phase)
+                            F0list.append(float(F0))
+
+    #write minphase.dat if flag is set
+    if args.writemin:
+        # now find min phase
+        val, idx = min((val, idx) for (idx, val) in enumerate(F0list))
+
+        # check if all are DIS
+        THRESH=1e-4
+        alldis=True
+        for myF in F0list:
+            if (abs(myF-val) > THRESH):
+               alldis=False
+        if alldis:
+           idx=phaseslist.index('DIS')
+
+        # and output to file
+        ofile="minphase.dat"
+        with open(ofile,'w') as f:
+            phase=phaseslist[idx]
+            shortphase=re.sub("Phase","",phase)
+            f.write("{}".format(shortphase))
+
     os.chdir(idir)
-        
