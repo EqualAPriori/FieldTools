@@ -5,22 +5,23 @@ from skimage import measure
 import pdb
 #import viztools as viz
 
-'''
-    Function to AnalyzeDomains that come out of a PolyFTS simulation
-    
-    - identify domains using the "burning alrgorithm"
-        Based off of OperatorBridging in Josh's PolyFTS bridging code
-
-    - mesh using marching cubes
-    - calculate volume and area of domains using mesh
-
-'''
-
 # for burning algorithm
 import sys
 sys.setrecursionlimit(100000)
 
 class DomainAnalyzer:
+    '''
+        Class to AnalyzeDomains that come out of a PolyFTS simulation
+        
+        - identify domains using the "burning alrgorithm"
+            Based off of OperatorBridging in Josh's PolyFTS bridging code
+
+        - mesh using marching cubes
+        - calculate volume and area of domains using mesh
+
+    '''
+
+
     def __init__(self,coords,fields, density_field_index=0, density_threshold = 0.5):
         ''' Define and calculate useful variables for DomainAnalysis routines
         '''
@@ -33,7 +34,7 @@ class DomainAnalyzer:
 
         self.__ndim = len(coords.shape) - 1
         self.__Nx = coords.shape[:self.__ndim]
-        self.__nfields = len(fields.shape) - self.__ndim
+        self.__nfields = fields.shape[self.__ndim]
         self.__M = np.prod(self.__Nx)
 
 
@@ -539,7 +540,6 @@ class DomainAnalyzer:
          if coord[i] < 0:             
              coord[i] = self.__Nx[i] - 1
              image_flag[i] -= 1
-    
 
     def pbc_domain_locs(self,idomain,local_com):
         '''This function returns the locations of the other domains on the periodic boundary.  
@@ -560,3 +560,85 @@ class DomainAnalyzer:
             num_extra = len(extra_com)
         return extra_com
             
+
+class DomainTracker:
+    def __init__(self, boxl, vol_threshold=0.2):
+        self.__boxl = boxl # stores max box position, (lower corner is at 0,0,0)
+        self.__boxh = 0.5*boxl
+        self.__ndim = len(boxl) 
+        self.__vol_threshold = vol_threshold # volume threshold below which to ignore domains, percentage
+        self.__is_init_pos = False
+        #self.__msd = # stores average squared displacement (averaged over all micelles)
+
+    def setInitialPositions(self,ndomains, com):
+        ''' Set initial positions of domains 
+        '''
+        self.__ndomains = ndomains
+        self.__pos0 = np.copy(com)  # initial position of each domain
+        self.__pos_prev = np.copy(com)
+        self.__imageflags = np.zeros((self.__ndomains,self.__ndim)) # which PBC image is the domain in (so that MSD can exceed the size of box)
+        self.__sqdisp = np.zeros(self.__ndomains) # stores squared displacement of each micelle
+
+        self.__is_init_pos = True
+
+    def getMSD(self):
+        ''' Returns mean squared displacement (averaged over all micelles)
+        '''
+        assert(self.__is_init_pos)
+        return np.average(self.__sqdisp)
+
+    def updateDisp(self,pos_curr, vol_curr):
+        ''' Given current position of all micelles, update the squared displacement
+
+            However, there's several things to be careful of:
+
+            - The number of domains needs to be the same, the threshold will be needed to ignore domains with small volumes
+                ^ frankly I'm not sure if this will work
+            - the domain ordering may have changed so I need to figure out which domain_index in pos_curr corresponds to the domain_idx in pos_prev
+        '''
+        #check vol_curr
+        pdb.set_trace()
+
+        self.__pos_prev = np.copy(pos_curr)
+
+        ndomains_curr = pos_curr.shape[0]
+        assert(self.__ndomains == ndomains_curr)
+       
+        # compute index_map between pos_curr to pos_prev
+        index_map = np.zeros(self.__ndomains, dtype=np.int32 )
+        for i in range(self.__ndomains):
+            min_dist, min_idx = 1e20, -1 
+            for j in range(i+1,self.__ndomains):
+                dist=getDistMinImage(pos_curr[i],self.__pos_prev[j])
+                if dist < min_dist:
+                    min_dist = dist
+                    min_idx = j
+            index_map[i] = min_idx
+        #check index map
+        pdb.set_trace()
+        
+        # now compute difference between pos_curr and pos_prev (without PBC)
+        for i in range(self.__ndomains):
+            dist = pos_curr[i] - pos_prev[index_map[i]] #FIXME check if this index_map usage is right
+            for j in range(self.__ndim):
+                # if domain has moved more than boxh then its crossed the PBC, so we update image flag accordingly
+                if dist[j] > self.__boxh[j]:
+                    self.__imageflags[i][j] += 1
+                if dist[j] < -self.__boxh[j]:
+                    self.__imageflags[i][j] -= 1
+
+    def getDistMinImage(self,posA, posB):
+        '''get the distance between posA and posB using the minimum image convention
+        '''
+        dist = posB - posA 
+        for i in range(self.__ndim):
+            if dist[i] >= self.__boxh[i]: 
+                dist[i] -= self.__boxl[i]
+            if dist[i] <= -self.__boxh[i]: 
+                dist[i] += self.__boxl[i]
+        return dist
+
+
+
+
+
