@@ -172,7 +172,7 @@ class PhaseBoundaryHolder:
         elif plottype == 'nodesblack':
             marker = itertools.cycle(('+', 'o', '*','v','^','<','>','s','p','h','H','x'))
             color  = itertools.cycle(('k'))
-        elif plottype == 'simplecolors':
+        elif plottype == 'simplecolors' or 'nolegend':
             marker = itertools.cycle(('+', 'o', '*','v','^','<','>','s','p','h','H','x'))
             color  = itertools.cycle(('k','g','c','r','b','m','y'))
         else:
@@ -186,18 +186,20 @@ class PhaseBoundaryHolder:
                 self.plotvert(ax)
             elif n == 2:
                 self.ax_plot_boundaries(ax,marker=marker,color=color, showlabels=False)
-        elif plottype == 'nodes' or plottype == 'nodesblack' or plottype == 'simplecolors':
+        elif plottype == 'nodes' or plottype == 'nodesblack' or plottype == 'simplecolors' or plottype == 'nolegend':
             if n==1:
                 self.loopplot(ax,nodes,color=color,marker=marker,showlabels=True)
                 self.plotvert(ax)
             elif n==2:
-                self.ax_plot_nodes(ax,nodes)
+                if plottype != 'nolegend':
+                    self.ax_plot_nodes(ax,nodes)
                 self.ax_plot_boundaries(ax,marker=marker,color=color, showlabels=True)
 
-            ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-            box = ax.get_position()
-            ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
-            ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+            if plottype != 'nolegend':
+                ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+                box = ax.get_position()
+                ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+                ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 
 
         ax.axis(axisrange)
@@ -213,6 +215,14 @@ class PhaseBoundaryHolder:
             plt.gcf().set_tight_layout(True) #makes the graph look better by removing whitespace
             plt.show()
         else:
+            if args.aspect:
+                 ratio = float(args.aspect)
+                 xleft, xright = ax.get_xlim()
+                 ybottom, ytop = ax.get_ylim()
+                 # the abs method is used to make sure that all numbers are positive
+                 # because x and y axis of an axes maybe inversed. 
+                 # convert to figure coords from data coords
+                 ax.set_aspect(abs((xright-xleft)/(ybottom-ytop))*ratio)
             if filename.split('.')[-1] == 'eps':
                 plt.savefig(filename, bbox_inches='tight', format='eps')
             else:
@@ -754,6 +764,7 @@ if __name__ == '__main__':
     parser.add_argument('-i','--interp_dimension',action='store',default=[0],help='Dimensions to interpolate the phase diagram along ex: [0,1] would interpolate in 2 dimensions')
     parser.add_argument('-p','--plotstyle3d',action='store',default='flat',help='This argument changes the 3d plot style. Flat => multiple graphs with different linestyles on top of each other')
     parser.add_argument('--stylesheet',action= 'store',default=os.path.dirname(os.path.realpath(sys.argv[0]))+'/better_style.mplstyle',help='This argument is the Matplotlib stylesheet that will be used for graphing') #the default is located in the directory this script is located at
+    parser.add_argument('--aspect',action='store',default=None,help='The aspect ratio for the outputted figure use 1 for a square fig, works for a 2d graph right now')
     print("IMPLEMENT CUSTOM AXIS RANGES AND LABELS FROM COMMAND LINE")
     args = parser.parse_args()
     
