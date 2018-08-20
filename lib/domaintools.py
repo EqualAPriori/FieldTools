@@ -43,13 +43,13 @@ class DomainAnalyzer:
             raise ValueError("coords[0,0,0] != (0,0,0)")
 
         if self.__ndim == 2:
-            self.__boxl = tuple(self.__coords[-1,-1]) 
-            self.__boxh = tuple(self.__coords[-1,-1]*0.5) 
+            self.__boxl = tuple(self.__coords[-1,-1] + self.__coords[1,1]) 
+            self.__boxh = tuple(np.array(self.__boxl)*0.5) 
             self.__gridspacing = (self.__coords[1,0][0], self.__coords[0,1][1])
             self.__hvoxel = np.array([coords[1,0],coords[0,1]])
         elif self.__ndim == 3:
-            self.__boxl = tuple(self.__coords[-1,-1,-1]) 
-            self.__boxh = tuple(self.__coords[-1,-1,-1]*0.5) 
+            self.__boxl = tuple(self.__coords[-1,-1,-1] + self.__coords[1,1,1]) 
+            self.__boxh = tuple(np.array(self.__boxl)*0.5) 
             self.__gridspacing = (self.__coords[1,0,0][0], self.__coords[0,1,0][1], self.__coords[0,0,1][2])
             self.__hvoxel = np.array([coords[1,0,0],coords[0,1,0],coords[0,0,1]])
         self.__hcell = self.__hvoxel * self.__Nx
@@ -82,8 +82,12 @@ class DomainAnalyzer:
         # if changing the Density threshold, will need to index domains again
         self.__needToIndexDomains = True
   
-    def getNdim():
+    def getNdim(self):
         return self.__ndim
+    def getBoxl(self):
+        return self.__boxl
+    def getVolVoxel(self):
+        return self.__volvoxel
 
     def getDomainStats(self, useMesh=True, plotMesh=False,add_periodic_domains=False):
         ''' Calculate properties of each of the domains
@@ -198,10 +202,18 @@ class DomainAnalyzer:
         if self.__ndim == 2:
             mydensity = self.__fields[:,:, self.__density_field_index]
             contours = measure.find_contours(mydensity, self.__density_threshold) 
+
+            # need to scale contours to be in terms of box dimensions
+            for c in contours:
+                c /= self.__Nx
+                c *= self.__boxl
+
             if datafile:
                 self.writeContours(contours,datafile)
             if plotfile:
                 self.plotContours2D(contours,surface=mydensity,filename=plotfile)
+
+            return contours
 
         elif self.__ndim == 3:
             mydensity = self.__fields[:,:,:, self.__density_field_index]
