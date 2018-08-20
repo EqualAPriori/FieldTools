@@ -78,6 +78,8 @@ for mydir in dirs:
     with open(fnme,'r') as f:
         
         xpos_tmp=re.sub("[a-z,A-Z]","", mydir.split("/")[dir_that_varies])
+        if '_' in xpos_tmp: # bit of a hack for tau0.9_chiN13.0 directories
+            xpos_tmp=xpos_tmp.split('_')[-1]
         xpos[i] = float(xpos_tmp)
         for line in f:
             l = line.split()
