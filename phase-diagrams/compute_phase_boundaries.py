@@ -118,12 +118,15 @@ class PhaseBoundaryHolder:
             x,y=node.pos[0], node.pos[1]
             ax.plot(x,y,marker='.',color='black',markersize=0.5)
 
-    def ax_plot_boundaries(self,ax,marker=None, color=None, showlabels=False):
+    def ax_plot_boundaries(self,ax,marker=None, color=None, showlabels=False,ignorephases=[]):
 
         n = len(self.boundaries)
         for i in range(n):
             mymarker = marker.next()
             mycolor = color.next()
+            if self.boundaries[i].phaseA in ignorephases or  self.boundaries[i].phaseB in ignorephases:
+                continue
+
             lines = self.boundaries[i].get_linesegments()
             for j in range(len(lines)):
                 if showlabels and j==0:
@@ -168,18 +171,20 @@ class PhaseBoundaryHolder:
         if plottype == 'plain':
             marker = itertools.cycle(('o')) 
             color  = itertools.cycle(('k')) 
+            ignorephases=['sDIS']
 
         elif plottype == 'nodes':
             marker = itertools.cycle(('+', 'o', '*','v','^','<','>','s','p','h','H','x')) 
             color  = itertools.cycle(('tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple', 'tab:brown', 'tab:pink', 'tab:gray', 'tab:olive', 'tab:cyan')) 
             #self.plot_with_nodes(filename,nodes,xlabel=args.xlabel, ylabel=args.ylabel)
+            ignorephases=[]
         else:
             raise ValueError("Invalid plottype %s" % args.plottype)
 
         fig = plt.figure()
         ax = fig.add_subplot(111)
         if plottype == 'plain':
-            self.ax_plot_boundaries(ax,marker=marker,color=color, showlabels=False)
+            self.ax_plot_boundaries(ax,marker=marker,color=color, showlabels=False,ignorephases=ignorephases)
         elif plottype == 'nodes':
             self.ax_plot_nodes(ax,nodes)
             self.ax_plot_boundaries(ax,marker=marker,color=color, showlabels=True)
