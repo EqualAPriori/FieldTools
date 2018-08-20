@@ -122,7 +122,7 @@ _atom_site_fract_z
     #os.system('/'.join(re.split('/',script_dir)[0:-2])+'/platon/platon -o -m '+cif_path+'> /dev/null')
     subprocess.call(['/'.join(re.split('/',script_dir)[0:-2])+'/platon/platon','-o','-m',cif_path],stdout=subprocess.DEVNULL)
     if not os.path.isfile('structure.lis'):
-        raise FileNotFoundError("ERROR can't structure.lis in the local direcory, maybe platon did not create it?")
+        raise FileNotFoundError("structure.lis in the local direcory, maybe platon did not create it?")
     spacegroup,precision = [],[]
     #only check for space groups after a it says it has found a new symmetry
     check4spacegroups = False
@@ -138,8 +138,10 @@ _atom_site_fract_z
                 for word in re.split(' ', line):
                     if re.search('[0-9]',word):
                         precision = float(word)/box_multiplier
+                        if float(word) != 0.5:
+                            print("WARNING: PLATON'S MAXIMUM ACCEPTABLE DEVIATION WAS NOT FOUND TO BE 0.5 ANGSTROMS, SO THE TOLERANCE SPECIFIED IN RADII OF GYRATION IS WRONG. IN ALL TEST CASES THE MAXIMUM ACCEPTABLE DEVIATION WAS 0.5 RADII OF GYRATION SO THIS SEEMS TO BE PLATON'S DEFAULT, BUT IN CASE ITS NOT I ADDED THIS WARNING.  READ THE structure.lis FILE TO SEE PLATON'S OUTPUT")
     if spacegroup and precision:
-        print('Platon found the spacegroup to be {} with a maximum acceptable deviation of {} times the radius of gyration'.format(spacegroup,precision))
+        print('Platon found the spacegroup to be {} with a maximum acceptable deviation of {} times the radius of gyration \n For more detailed output open the structure.lis file'.format(spacegroup,precision))
     else:
-        print('ERROR platon did not find a space group or the maximum acceptable deviation')
+        print("ERROR: platon did not find a space group, check the structure.lis file for Platon's raw output")
 
