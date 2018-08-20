@@ -4,6 +4,7 @@ import numpy as np
 import scipy.interpolate 
 import re, glob
 import matplotlib.pyplot as plt
+from matplotlib import colors as mcolors
 import argparse
 import itertools
 import pdb
@@ -81,6 +82,7 @@ class PhaseBoundary:
 class PhaseBoundaryHolder:
     def __init__(self):
         self.boundaries = []
+        self.phase_F_dict = {}
     def get_boundary(self,phaseA, phaseB):
         '''Return boundary number if it exists, otherwise return -1'''
         n = len(self.boundaries)
@@ -105,14 +107,16 @@ class PhaseBoundaryHolder:
         else:
             self.boundaries[iboundary].add_point(pos,F)
 
-    def write(self,filename):
-        f = open (filename, 'w')
-        n = len(self.boundaries)
-        for i in range(n):
-            m = self.boundaries[i].npoints
-            for j in range(m):
-                f.write("%f %f # %s-%s\n" % (self.boundaries[i].boundary_points[j][0],self.boundaries[i].boundary_points[j][1], self.boundaries[i].phaseA, self.boundaries[i].phaseB))
-        f.close()    
+#    def write(self,filename,n=2):
+#        if n == 2:
+#            f = open (filename, 'w')
+#            n = len(self.boundaries)
+#            for i in range(n):
+#                m = self.boundaries[i].npoints
+#                for j in range(m):
+#                    f.write("%f %f # %s-%s\n" % (self.boundaries[i].boundary_points[j][0],self.boundaries[i].boundary_points[j][1], self.boundaries[i].phaseA, self.boundaries[i].phaseB))
+#            f.close()    
+#        if n == 1:
 
     def ax_plot_nodes(self, ax, nodes):
         '''utility to add nodes to the provided axis'''
@@ -135,32 +139,58 @@ class PhaseBoundaryHolder:
                 x = lines[j][:,0]
                 y = lines[j][:,1]
                 #ax.plot(x,y,color=mycolor,marker=mymarker,linewidth=3,markersize=4)
+
                 ax.plot(x,y,color=mycolor,marker=mymarker,label=mylabel)
 
-    def write(self,filename):
-        
-        f = open(filename,'wb')
-        f.write("# raw data for phase boundaries. Formatted for gnuplot, though pretty self explanatory\n")
+    def write(self,filename,dim=2,z=None):
+        if dim ==2:
+           with open(filename,'w') as f:
+                f.write("# raw data for phase boundaries. Formatted for gnuplot, though pretty self explanatory\n")
 
-        n = len(self.boundaries)
-        for i in range(n):
-            lines = self.boundaries[i].get_linesegments()
-            for j in range(len(lines)):
-                if j==0:
-                    f.write(b"#%s-%s\n" % (self.boundaries[i].phaseA, self.boundaries[i].phaseB))
-                else:      
-                    mylabel = ""
-                x = lines[j][:,0]
-                y = lines[j][:,1]
-                data =np.vstack((x,y)).T
-                np.savetxt(f,data,fmt="%0.8f")
-            f.write(b"\n\n")
-                #ax.plot(x,y,color=mycolor,marker=mymarker,linewidth=3,markersize=4)
+                n = len(self.boundaries)
+                for i in range(n):
+                    lines = self.boundaries[i].get_linesegments()
+                    for j in range(len(lines)):
+                        if j==0:
+                            f.write("#%s-%s\n" % (self.boundaries[i].phaseA, self.boundaries[i].phaseB))
+                        else:      
+                            mylabel = ""
+                        x = lines[j][:,0]
+                        y = lines[j][:,1]
+                        data =np.vstack((x,y)).T
+                        np.savetxt(f,data,fmt="%0.8f")
+                    f.write("\n\n")
+        elif dim == 1:
+            with open(filename,'w+') as f:
+                f.write("#Raw free energy data pairs for each microphase\n")
+                for p in self.phase_F_dict:
+                    f.write("#"+p+"\n")
+                    data = np.vstack(self.phase_F_dict[p]).T
+                    np.savetxt(f,data,fmt="%0.8f")
+                    f.write("\n\n")
+        elif dim ==3:
+            with open(filename,'a') as f:
+                n = len(self.boundaries)
+                for i in range(n):
+                    lines = self.boundaries[i].get_linesegments()
+                    for j in range(len(lines)):
+                        if j==0:
+                            f.write("#%s-%s\n" % (self.boundaries[i].phaseA, self.boundaries[i].phaseB))
+                        else:      
+                            mylabel = ""
+                        x = lines[j][:,0]
+                        y = lines[j][:,1]
+                        my_z = [z]*len(x)
+                        data =np.vstack((x,y,my_z)).T
+                        np.savetxt(f,data,fmt="%0.8f")
+                        f.write("\n\n")
+                f.write("\n\n")
 
-        f.close()
 
 
-    def plot(self,filename,plottype,nodes=None,xlabel='',ylabel='',axisrange=[None,None,None,None],n=2, z=None):
+                  
+
+    def plot(self,filename,plottype,nodes=None,xlabel='',ylabel='',axisrange=[None,None,None,None],n=2, z=None,colors=None,symbols=None,xticks=None,yticks=None,aspect=None):
         if plottype == 'plain':
             marker = itertools.cycle(('o')) 
             color  = itertools.cycle(('k')) 
@@ -172,12 +202,15 @@ class PhaseBoundaryHolder:
         elif plottype == 'nodesblack':
             marker = itertools.cycle(('+', 'o', '*','v','^','<','>','s','p','h','H','x'))
             color  = itertools.cycle(('k'))
-        elif plottype == 'simplecolors':
+        elif plottype == 'simplecolors' or 'nolegend':
             marker = itertools.cycle(('+', 'o', '*','v','^','<','>','s','p','h','H','x'))
-            color  = itertools.cycle(('k','g','c','r','b','m','y'))
+            color  = itertools.cycle(('r','b','g','k','m','c','y'))
         else:
-            raise ValueError("Invalid plottype %s" % args.plottype)
-
+            raise ValueError("Invalid plottype %s" % plottype)
+        if colors:
+           color = itertools.cycle(colors)
+        if symbols:
+           marker = itertools.cycle(symbols)
         fig = plt.figure()
         ax = fig.add_subplot(111)
         if plottype == 'plain':
@@ -186,18 +219,20 @@ class PhaseBoundaryHolder:
                 self.plotvert(ax)
             elif n == 2:
                 self.ax_plot_boundaries(ax,marker=marker,color=color, showlabels=False)
-        elif plottype == 'nodes' or plottype == 'nodesblack' or plottype == 'simplecolors':
+        elif plottype == 'nodes' or plottype == 'nodesblack' or plottype == 'simplecolors' or plottype == 'nolegend':
             if n==1:
                 self.loopplot(ax,nodes,color=color,marker=marker,showlabels=True)
                 self.plotvert(ax)
             elif n==2:
-                self.ax_plot_nodes(ax,nodes)
+                if plottype != 'nolegend':
+                    self.ax_plot_nodes(ax,nodes)
                 self.ax_plot_boundaries(ax,marker=marker,color=color, showlabels=True)
 
-            ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-            box = ax.get_position()
-            ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
-            ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+            if plottype != 'nolegend':
+                ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+                box = ax.get_position()
+                ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+                ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 
 
         ax.axis(axisrange)
@@ -209,34 +244,47 @@ class PhaseBoundaryHolder:
         #box = ax.get_position()
         #ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
         #ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        if xticks:
+           ax.set_xticks(xticks)
+        if yticks:
+           ax.set_yticks(yticks)
         if filename == '':
             plt.gcf().set_tight_layout(True) #makes the graph look better by removing whitespace
             plt.show()
         else:
+            if aspect:
+                 ratio = float(aspect)
+                 xleft, xright = ax.get_xlim()
+                 ybottom, ytop = ax.get_ylim()
+                 # the abs method is used to make sure that all numbers are positive
+                 # because x and y axis of an axes maybe inversed. 
+                 # convert to figure coords from data coords
+                 ax.set_aspect(abs((xright-xleft)/(ybottom-ytop))*ratio)
             if filename.split('.')[-1] == 'eps':
                 plt.savefig(filename, bbox_inches='tight', format='eps')
             else:
                 plt.savefig(filename, bbox_inches='tight')
     
     def loopplot(self,ax,nodes,marker='.', color='k', showlabels=False):
-    	phases = copy.copy(nodes[1].phases) #initialize possible phase list
-    	for n in nodes:
-    		for p in n.phases:
-    			if p not in phases:
-    				phases.append(p)
-    	for p in phases:
-    		mymarker = next(marker)
-    		mycolor = next(color)
-    		x,y = [],[]
-    		for n in nodes:
-    			if n.has_phase(p):
-    				x.append(n.pos[0])
-    				y.append(n.get_phase_F(p))
-    				#pdb.set_trace()
-    		if showlabels:
-    			ax.plot(x,y,marker=mymarker,color=mycolor,label = p,)
-    		else:
-    			ax.plot(x,y,marker=mymarker,color=mycolor,)
+        phases = copy.copy(nodes[1].phases) #initialize possible phase list
+        for n in nodes:
+            for p in n.phases:
+                if p not in phases:
+                    phases.append(p)
+        for p in phases:
+            mymarker = next(marker)
+            mycolor = next(color)
+            x,y = [],[]
+            for n in nodes:
+                if n.has_phase(p):
+                    x.append(n.pos[0])
+                    y.append(n.get_phase_F(p))
+                    #pdb.set_trace()
+            if showlabels:
+                ax.plot(x,y,marker=mymarker,color=mycolor,label = p)
+            else:
+                ax.plot(x,y,marker=mymarker,color=mycolor)
+            self.phase_F_dict[p] = (x,y)
     def plotvert(self,ax):
         bottom = ax.get_ylim()[0]#get the bottom area to be plotted
         left = ax.get_xlim()[0]#find the left side of the graph for centering text
@@ -264,9 +312,9 @@ class PhaseBoundaryHolder:
             y = (centernode.get_min_F()-bottom)/2.0+bottom #vertical center point
             t= ax.text(x,y,centernode.get_min_phase(),fontsize='large',color ='k',horizontalalignment='center')
    
-    def plot3d(self,ax,filename,boundary_line_types,marker=None,nodes=None,axisrange=[None,None,None,None],z=None):
+    def plot3d(self,ax,filename,marker=None,color=None,nodes=None,axisrange=[None,None,None,None],z=None):
 
-        for boundary in self.boundaries:
+        for boundary in reversed(self.boundaries):
         #   if not z:
                lines = boundary.get_linesegments()
                for j in range(len(lines)):
@@ -278,10 +326,9 @@ class PhaseBoundaryHolder:
                    x = lines[j][:,0]
                    y = lines[j][:,1]
                    #ax.plot(x,y,color=mycolor,marker=mymarker,linewidth=3,markersize=4)
-                   my_linetype = boundary_line_types[boundary.phaseA+'-'+boundary.phaseB]
                    my_ax =ax[mylabel] #plot on the axis with the appropriate phase boundary by accessing a dictionary
-                   my_ax.plot(x,y,linewidth=3,label=mylabel,marker=marker,**my_linetype)
-                   my_ax.text(x[-1]-.01,y[-1]-.01,args.zlabel + '=' + str(z),fontsize='small',fontweight='semibold',verticalalignment='center',horizontalalignment='right') #graph text at the toward the end of the line 
+                   my_ax.plot(x,y,linewidth=3,label=mylabel,color= color,marker=marker,)
+                   my_ax.text(x[-1]+.01,y[-1]-.01,args.zlabel + '=' + str(z),fontsize='small',fontweight='semibold',verticalalignment='center',horizontalalignment='left') #graph text at the toward the end of the line 
 
             #pdb.set_trace()
 #    def plot_plain(self,filename,xlabel='',ylabel=''):
@@ -414,10 +461,10 @@ class Node:
             if abs(self.F[i] - self.F[DIS_idx]) > self.F_THRESHOLD:
                 flag = False
         self.is_all_DIS = flag; 
-		#self.phases[DIS_idx] = 'sDIS' # change name to spinodal DIS (sDIS)
+        #self.phases[DIS_idx] = 'sDIS' # change name to spinodal DIS (sDIS)
         
     def get_phase_F(self,phase):
-      	return self.F[self.get_phase_index(phase)]
+          return self.F[self.get_phase_index(phase)]
     def get_min_F(self):
         idx = self.get_min_idx()
         if idx > len(self.phases) or idx < 0:
@@ -427,11 +474,11 @@ class Node:
     def get_min_phase(self):
         idx = self.get_min_idx()
         return self.phases[idx]
-		#if not self.is_all_DIS:
-		#	idx = self.get_min_idx()
-		#	return self.phases[idx]
-		#else:
-		#	return "sDIS" # if all are dis, then return a different DIS phase
+        #if not self.is_all_DIS:
+        #    idx = self.get_min_idx()
+        #    return self.phases[idx]
+        #else:
+        #    return "sDIS" # if all are dis, then return a different DIS phase
 
     def get_min_idx(self):
         val, idx = min((val, idx) for (idx, val) in enumerate(self.F)) 
@@ -690,11 +737,11 @@ def calc_phase_boundaries(nodes,n=2):
 
 
 def numerical_sort(mydir):  #function that returns a number for each directory in order to sort by number rather than alpahabetically
-	dir1=mydir.split('/')[-2]
-	dir2=mydir.split('/')[-1]	
-	num1= float(re.sub("[^. 0-9]","",re.split('_',dir1)[-1]))
-	num2 = float(re.sub("[^. 0-9]","",re.split('_',dir2)[-1]))
-	return num1*1000000+num2*100 #weigts each number in terms of importance, the first directory is more important so more heavily weighted
+    dir1=mydir.split('/')[-2]
+    dir2=mydir.split('/')[-1]    
+    num1= float(re.sub("[^. 0-9]","",re.split('_',dir1)[-1]))
+    num2 = float(re.sub("[^. 0-9]","",re.split('_',dir2)[-1]))
+    return num1*1000000+num2*100 #weigts each number in terms of importance, the first directory is more important so more heavily weighted
 
 
 def slice2d(dirs):
@@ -732,7 +779,7 @@ def slice2d(dirs):
             present_boundaries.append(boundary.phaseA+'-'+boundary.phaseB)
     present_boundaries = list(set(present_boundaries)) #eliminate non unique entries 
     return boundaryholders,present_boundaries,z
-		
+        
 # ==============================================================================
 #   Begin Main
 # ==============================================================================
@@ -751,9 +798,11 @@ if __name__ == '__main__':
     parser.add_argument('--axisrange', action='store', nargs=4, default=[None,None,None,None],help='')
     parser.add_argument('--linecutoff', action='store', nargs='+', default=[1e30,1e30],help='maximum length of lines to draw in phase diagrams, useful to clean them up')
     parser.add_argument('-n','--dim',action='store',default=None,help='Number of dimensions to plot phase data in \n   1 => Free energy curves\n   2 => Phase Diagram \n   3 => 3d phase diagram  (guesses by default)')
-    parser.add_argument('-i','--interp_dimension',action='store',default=[0],help='Dimensions to interpolate the phase diagram along ex: [0,1] would interpolate in 2 dimensions')
+    parser.add_argument('-i','--interp_dimension',action='store',default=[0],nargs='+',help='Dimensions to interpolate the phase diagram along ex: [0,1] would interpolate in 2 dimensions')
     parser.add_argument('-p','--plotstyle3d',action='store',default='flat',help='This argument changes the 3d plot style. Flat => multiple graphs with different linestyles on top of each other')
     parser.add_argument('--stylesheet',action= 'store',default=os.path.dirname(os.path.realpath(sys.argv[0]))+'/better_style.mplstyle',help='This argument is the Matplotlib stylesheet that will be used for graphing') #the default is located in the directory this script is located at
+    parser.add_argument('--aspect',action='store',default=None,help='The aspect ratio for the outputted figure use 1 for a square fig, works for a 2d graph right now')
+    print("IMPLEMENT CUSTOM AXIS RANGES AND LABELS FROM COMMAND LINE")
     print("IMPLEMENT CUSTOM AXIS RANGES AND LABELS FROM COMMAND LINE")
     args = parser.parse_args()
     
@@ -791,50 +840,59 @@ if __name__ == '__main__':
                     args.dim += 1
                     break
         if args.dim == 0 or args.dim >3:
-            print('ERROR: could not guess how many dimensions display in please specify with the -n flag')
-            raise
+            raise ValueError('could not guess how many dimensions display in please specify with the -n flag')
         print('Graphing in {0} dimensions according to guess. If this is incorrect specify the number manually with the -n flag'.format(str(args.dim)))
     else:
         args.dim = int(args.dim)
 
     if args.interp_dimension != [0]:
-        args.interp_dimension == int(args.interp_dimension)
+        args.interp_dimension = [int(i) for i in args.interp_dimension]
 
-
-    #boundaryholder.write("boundaries.dat")
-    #boundaryholder.plot_plain("fig_boundaries.png")
-    #boundaryholder.plot_heatmaps(nodes)
-    #plot_node_connectivity(nodes)
 
     if args.dim == 1:
         nodes = initialize_nodes(args.dirs, args.filename)
         boundaryholder = calc_phase_boundaries(nodes)
-        boundaryholder.plot(args.outfig,args.plottype, nodes=nodes,xlabel=args.xlabel, ylabel=args.ylabel,axisrange=args.axisrange,n=args.dim)
+        boundaryholder.plot(args.outfig,args.plottype, nodes=nodes,xlabel=args.xlabel, ylabel=args.ylabel,axisrange=args.axisrange,n=args.dim,aspect=args.aspect)
+        if args.raw != '':
+            print("Saving free energy curve data to \'%s\'" % args.raw)
+            boundaryholder.write(args.raw,1)
     elif args.dim == 2:
         nodes = initialize_nodes(args.dirs, args.filename)
         boundaryholder = calc_phase_boundaries(nodes)
         dist_threshold = args.linecutoff
-        #boundaryholder.set_dist_thresholds(dist_threshold)
+        boundaryholder.set_dist_thresholds(dist_threshold)
         os.getcwd()
         if args.raw != '':
             print("Saving raw phase boundary data to \'%s\'" % args.raw)
             boundaryholder.write(args.raw)
         print("Plotting with type \'%s\'" % args.plottype)
-        boundaryholder.plot(args.outfig,args.plottype, nodes=nodes,xlabel=args.xlabel, ylabel=args.ylabel,axisrange=args.axisrange)
+        boundaryholder.plot(args.outfig,args.plottype, nodes=nodes,xlabel=args.xlabel, ylabel=args.ylabel,axisrange=args.axisrange,aspect=args.aspect)
+
     elif args.dim == 3:
         if args.plotstyle3d == 'flat':
             boundaryholders,present_boundaries,z = slice2d(args.dirs)
             marker = itertools.cycle(('+', 'o', 's','v','^','<','>','x','p','h','H','*'))
             color  = itertools.cycle(('b','r','g','k','m','c'))
-            boundary_line_types = {}
-            for bound in present_boundaries:
-                boundary_line_types[bound] = {'color':next(color)}
-            boundary_line_styles = itertools.cycle(('-','--','-.',':'))
+            #this dictionary used to differentiate when they were all grouped together
+#            boundary_line_types = {}
+#            for bound in present_boundaries:
+#                boundary_line_types[bound] = {'color':next(color)}
+#            boundary_line_styles = itertools.cycle(('-','--','-.',':'))
             fig,axlist = plt.subplots(nrows=len(present_boundaries),ncols=1)
             axdict = dict(zip(present_boundaries,axlist)) #make a dictionary relating a phase boundary to an axis
             bounddict = dict(zip(axlist,present_boundaries)) #make a dictionary with the opposite set of keys and values swapped for other uses
-            for boundaryholder in boundaryholders:
-                boundaryholder.plot3d(axdict,'',boundary_line_types,marker=next(marker),z =next(z) )
+            #boundary
+            for i,boundaryholder in enumerate(boundaryholders):
+                my_z = next(z)
+                boundaryholder.plot3d(axdict,'',marker=next(marker),color=next(color),z= my_z)
+                
+                if args.raw != '':
+                    if i == 0:
+                       with open(args.raw,'w+') as f:
+                           f.write("#Raw phase boundary data for a layered phase boundary plot\n")
+                           print("Saving raw phase boundary data to \'%s\'" % args.raw)
+                    boundaryholder.write(args.raw,dim = 3,z=my_z)
+               
             max_ax = [1e30,0,1e30,0]
             for ax in axlist:   #get furthest posible axis ranges and set them all equal
                    for i in [0,2]:
@@ -852,10 +910,20 @@ if __name__ == '__main__':
             axlist[-1].set_xlabel(args.xlabel)
             axlist[int(len(axlist)/2)].set_ylabel(args.ylabel) #put the y label in the center of the plots
             for ax in axlist: ax.yaxis.set_ticks([2,4,6])#FORCE Y AXIS TICKS REMOVE IF YOU WANT DEFAULT NUMBERS
+            filename= args.outfig
             if args.outfig == '':
                 plt.gcf().set_tight_layout(True) #makes the graph look better by removing whitespace
                 plt.show()
             else:
+                if args.aspect:
+                     ratio = float(args.aspect)
+                     xleft, xright = ax.get_xlim()
+                     ybottom, ytop = ax.get_ylim()
+                     # the abs method is used to make sure that all numbers are positive
+                     # because x and y axis of an axes maybe inversed. 
+                     # convert to figure coords from data coords
+                     for ax in axlist:
+                         ax.set_aspect(abs((xright-xleft)/(ybottom-ytop))*ratio)
                 if filename.split('.')[-1] == 'eps':
                     plt.savefig(filename, bbox_inches='tight', format='eps')
                 else:
