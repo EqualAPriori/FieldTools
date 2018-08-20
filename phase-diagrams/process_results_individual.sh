@@ -2,9 +2,10 @@
 
 #Extract free-energy vs fA for all different phases and plot the results
 set -o pipefail # Allow error codes to pass through pipes
+IDIR=`pwd`
 
 filename=F0_phases.dat
-for dir1 in chiN*; do
+for dir1 in chiN* tau* eps*; do
   cd $dir1
 
   for dir2 in phiA*; do
@@ -54,7 +55,9 @@ for dir1 in chiN*; do
     #    echo "$phiA $L1 $L2 $fA2 $fB" >> ../MiktoParams_vs_phiA.dat
     #fi
 
-    cd ../
+    #cd ../
+    cd $IDIR/$dir1
   done
-  cd ..
+  #cd ..
+  cd $IDIR
 done
