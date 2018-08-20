@@ -25,7 +25,7 @@ import iotools as io
 # ==============================================================================
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Tool to guess crystallographic symmetry based on density.bin files' )
+    parser = argparse.ArgumentParser(description='Tool to guess crystallographic symmetry based on density.bin files. Requires a density.bin or dat file in the directory this script is run from. Also requires Platon to be compiled two directory levels higher than this script' )
     parser.add_argument('-f', '--filename', action='store', default='density.bin',help='file that contains the density information: default = density.bin')
     parser.add_argument('--round',action='store',default=4,help='The amount of decimal places to round the volumes and center of mass locations tothis is important for uniqueness calculations. default =4')
     parser.add_argument('-t','--tolerance',action='store',default=0.25,help='How tolerant platon will be to domains that are slightly out of place Default = 0.25 radii of gyration')
@@ -119,7 +119,7 @@ _atom_site_fract_z
     #this section runs platon and parses the file
     #======================================================================
     #run platon and discard the output, because it saves an output file automatically
-    #os.system('/'.join(re.split('/',script_dir)[0:-2])+'/platon/platon -o -m '+cif_path+'> /dev/null')
+    #PLATON MUST BE INSTALLED 2 DIRECTORIES HIGHER FOR THIS CALL TO IT TO RUN
     subprocess.call(['/'.join(re.split('/',script_dir)[0:-2])+'/platon/platon','-o','-m',cif_path],stdout=subprocess.DEVNULL)
     if not os.path.isfile('structure.lis'):
         raise FileNotFoundError("structure.lis in the local direcory, maybe platon did not create it?")
