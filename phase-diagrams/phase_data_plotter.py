@@ -107,16 +107,6 @@ class PhaseBoundaryHolder:
         else:
             self.boundaries[iboundary].add_point(pos,F)
 
-#    def write(self,filename,n=2):
-#        if n == 2:
-#            f = open (filename, 'w')
-#            n = len(self.boundaries)
-#            for i in range(n):
-#                m = self.boundaries[i].npoints
-#                for j in range(m):
-#                    f.write("%f %f # %s-%s\n" % (self.boundaries[i].boundary_points[j][0],self.boundaries[i].boundary_points[j][1], self.boundaries[i].phaseA, self.boundaries[i].phaseB))
-#            f.close()    
-#        if n == 1:
 
     def ax_plot_nodes(self, ax, nodes):
         '''utility to add nodes to the provided axis'''
@@ -143,6 +133,9 @@ class PhaseBoundaryHolder:
                 ax.plot(x,y,color=mycolor,marker=mymarker,label=mylabel)
 
     def write(self,filename,dim=2,z=None):
+        '''
+        this method writes phase boundary locations and free energies to files for plotting in another program
+        '''
         if dim ==2:
            with open(filename,'w') as f:
                 f.write("# raw data for phase boundaries. Formatted for gnuplot, though pretty self explanatory\n")
@@ -266,6 +259,10 @@ class PhaseBoundaryHolder:
                 plt.savefig(filename, bbox_inches='tight')
     
     def loopplot(self,ax,nodes,marker='.', color='k', showlabels=False):
+        '''
+        This method loops over each node in the boundary holder and 
+        finds what phases are present, and then plots the free energies
+        '''
         phases = copy.copy(nodes[1].phases) #initialize possible phase list
         for n in nodes:
             for p in n.phases:
@@ -286,6 +283,11 @@ class PhaseBoundaryHolder:
                 ax.plot(x,y,marker=mymarker,color=mycolor)
             self.phase_F_dict[p] = (x,y)
     def plotvert(self,ax):
+        '''
+        this method adds a vertical line for each free energy curve intersection on the 
+        1 dimensional free energy curve plot
+        it also adds the words for each phase
+        '''
         bottom = ax.get_ylim()[0]#get the bottom area to be plotted
         left = ax.get_xlim()[0]#find the left side of the graph for centering text
         right = ax.get_xlim()[1]
@@ -313,7 +315,10 @@ class PhaseBoundaryHolder:
             t= ax.text(x,y,centernode.get_min_phase(),fontsize='large',color ='k',horizontalalignment='center')
    
     def plot3d(self,ax,filename,marker=None,color=None,nodes=None,axisrange=[None,None,None,None],z=None):
-
+        '''
+        this method plots the phase boundaries on a given dictionary of axes, but does not show the plot
+        this allows multiple boundary holders to be plotted, to generate a layered plot
+        '''
         for boundary in reversed(self.boundaries):
         #   if not z:
                lines = boundary.get_linesegments()
@@ -625,17 +630,17 @@ def initialize_nodes(dirs,fnmeIn):
         # read phases
         phases = []
         F=[]
-        with open(fnme,'r') as f:
-            for line in f:
-                l=line.split()
-                phase = re.sub("Phase","",l[0]) #remove Phase
-                phases.append(phase)
-                F.append(float(l[1]))
-
-        pos = (phiA,chiN)
-        nodes.append(Node(pos,phases,F))
-
-        f.close()
+        try:
+            with open(fnme,'r') as f:
+                for line in f:
+                    l=line.split()
+                    phase = re.sub("Phase","",l[0]) #remove Phase
+                    phases.append(phase)
+                    F.append(float(l[1]))
+            pos = (phiA,chiN)
+            nodes.append(Node(pos,phases,F))
+        except FileNotFoundError:
+           print('WARNING: Free energy data not found at {} try using extractF0 to generate it'.format(fnme))
 
     populate_nodes_neighbors(nodes)
     return nodes
@@ -736,12 +741,25 @@ def calc_phase_boundaries(nodes,n=2):
 
 
 
-def numerical_sort(mydir):  #function that returns a number for each directory in order to sort by number rather than alpahabetically
-    dir1=mydir.split('/')[-2]
-    dir2=mydir.split('/')[-1]    
-    num1= float(re.sub("[^. 0-9]","",re.split('_',dir1)[-1]))
-    num2 = float(re.sub("[^. 0-9]","",re.split('_',dir2)[-1]))
-    return num1*1000000+num2*100 #weigts each number in terms of importance, the first directory is more important so more heavily weighted
+def numerical_sort(mydir):  
+    '''
+    This function weights a directory, so that it can be sorted
+    based on the numbers found in each portion of the directory
+    a greater weight is applied to numbers on the left
+    '''
+    weight = 0
+    words = re.split('/',mydir)
+    for i, word in enumerate(reversed(words)):
+        #get the last part of the word seperated by an underscore, because this will be used for indexing
+        last_word = re.split('_',word)[-1]
+        num = re.sub('[^0-9.]','',last_word)
+        if num:
+           num = float(num)
+           #apply a significant difference in weight, because the numbers can differ in order of magnitude
+           #ie phi = 0.1 chiN = 40
+           weight += num*(10**(5*(i+1)))
+    return weight     
+
 
 
 def slice2d(dirs):
@@ -802,7 +820,6 @@ if __name__ == '__main__':
     parser.add_argument('-p','--plotstyle3d',action='store',default='flat',help='This argument changes the 3d plot style. Flat => multiple graphs with different linestyles on top of each other')
     parser.add_argument('--stylesheet',action= 'store',default=os.path.dirname(os.path.realpath(sys.argv[0]))+'/better_style.mplstyle',help='This argument is the Matplotlib stylesheet that will be used for graphing') #the default is located in the directory this script is located at
     parser.add_argument('--aspect',action='store',default=None,help='The aspect ratio for the outputted figure use 1 for a square fig, works for a 2d graph right now')
-    print("IMPLEMENT CUSTOM AXIS RANGES AND LABELS FROM COMMAND LINE")
     print("IMPLEMENT CUSTOM AXIS RANGES AND LABELS FROM COMMAND LINE")
     args = parser.parse_args()
     
