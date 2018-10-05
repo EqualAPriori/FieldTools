@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 
 import numpy as np
 import scipy.interpolate 
@@ -825,25 +825,24 @@ if __name__ == '__main__':
     
     #fnmeIn="F0_phases.dat"
     #dirs=glob.glob("tau*/phiA*");
-    if args.axisrange != [None, None, None, None]:
-        args.axisrange = [float(x) for x in args.axisrange]
-    print('axis ranges:',args.axisrange)
-    print('xlabel:',args.xlabel)
-    print('ylabel:',args.ylabel)
-    print('zlabel:',args.zlabel)
     if os.path.isfile(args.stylesheet):
         plt.style.use(args.stylesheet)
         print('Graphing using the {} stylesheet'.format(args.stylesheet))
     else:
         print('WARNING: No stylesheet found at {} graphing with default Matplotlib settings'.format(args.stylesheet))
         print(os.path.dirname(os.path.realpath(sys.argv[0])))
+
+    # Guess how many dimensions you're plotting
     if not args.dim:
-    #Here it finds the where there are numbers in the first directory string, and then checks if those numbers are differnt in subsequent directory strings
+        #Here it finds the where there are numbers in the first directory string, and then checks if those numbers are differnt in subsequent directory strings
         dirs=args.dirs
-        print('Trying to guess how many dimensions to plot in')
         folders = re.split('/',dirs[0])
+        print('Trying to guess how many dimensions to plot in')
         args.dim = 0
-        locs,nums1,index = [],[],0
+        locs = [] # stores the indicies of directories in tree that contain numbers
+        nums1 = [] # stores the actual numbers in each subdirectory of tree
+        names=[]
+        index = 0
         for folder in folders:
            if re.search('[0-9]',folder):
                locs.append(index)
@@ -853,14 +852,31 @@ if __name__ == '__main__':
         for i in range(len(nums1)):
            #in every path if the number at the current location is different add one to the dimension
            for mydir in dirs[1:]:
-               if float(re.sub('[^0-9.]',"",re.split('_',re.split('/',mydir)[locs[i]])[-1])) != nums1[i]:#grab the last number following the underscore since there may be multiple numbers in a directory
+               mysubdir = re.split('/',mydir)[locs[i]]
+               if float(re.sub('[^0-9.]',"",re.split('_',mysubdir)[-1])) != nums1[i]:#grab the last number following the underscore since there may be multiple numbers in a directory
                     args.dim += 1
+                    names.append(re.sub('[0-9,.]','',mysubdir))
                     break
         if args.dim == 0 or args.dim >3:
             raise ValueError('could not guess how many dimensions display in please specify with the -n flag')
         print('Graphing in {0} dimensions according to guess. If this is incorrect specify the number manually with the -n flag'.format(str(args.dim)))
+
+        if args.dim == 1:
+            args.xlabel = names[0]
+            args.ylabel = 'Free Energy'
+        elif args.dim == 2:
+            args.ylabel = names[0]
+            args.xlabel = names[1]
     else:
         args.dim = int(args.dim)
+
+
+    if args.axisrange != [None, None, None, None]:
+        args.axisrange = [float(x) for x in args.axisrange]
+    print('axis ranges:',args.axisrange)
+    print('xlabel:',args.xlabel)
+    print('ylabel:',args.ylabel)
+    print('zlabel:',args.zlabel)
 
     if args.interp_dimension != [0]:
         args.interp_dimension = [int(i) for i in args.interp_dimension]
