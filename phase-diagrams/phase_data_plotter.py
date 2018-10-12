@@ -836,6 +836,8 @@ if __name__ == '__main__':
     if not args.dim:
         #Here it finds the where there are numbers in the first directory string, and then checks if those numbers are differnt in subsequent directory strings
         dirs=args.dirs
+
+
         folders = re.split('/',dirs[0])
         print('Trying to guess how many dimensions to plot in')
         args.dim = 0
@@ -844,6 +846,8 @@ if __name__ == '__main__':
         names=[]
         index = 0
         for folder in folders:
+           if '*' in folder:
+                raise ValueError("There is a '*' in you directories. Looks like a wildcard didn't get expanded. Check your path, something is likely wrong!")
            if re.search('[0-9]',folder):
                locs.append(index)
                first_num = re.sub('[^0-9.]',"",re.split('_',folder)[-1])#get the last number in the folder, sometimes there are multiple numbers
@@ -859,6 +863,7 @@ if __name__ == '__main__':
                     break
         if args.dim == 0 or args.dim >3:
             raise ValueError('could not guess how many dimensions display in please specify with the -n flag')
+
         print('Graphing in {0} dimensions according to guess. If this is incorrect specify the number manually with the -n flag'.format(str(args.dim)))
 
         if args.dim == 1:
