@@ -156,21 +156,28 @@ idir=os.getcwd()
 for mydir in dirs:
     os.chdir(mydir)
     phases=glob.glob("*Phase")
-    with open(filename,"w") as f:
-        phaseslist=[]
-        F0list=[]
-        for phase in phases:
-            wdir=idir+'/'+mydir+"/"+phase
-            shortphase=re.sub("Phase","",phase)
-            if phase not in phases2ignore:
-                if checkStatus(wdir,status2ignore):
-                    if args.phi_species_num == -1 or checkPhi("{}/{}.out".format(wdir,shortphase),wdir):
-                        F0 = parseLogForF0("{}/{}.out".format(wdir,shortphase))
-                        if F0 != 0.0:
-                            f.write("{} {}\n".format(phase,F0))
-                            phaseslist.append(phase)
-                            F0list.append(float(F0))
+    phaseslist=[]
+    F0list=[]
+    for phase in phases:
+        wdir=idir+'/'+mydir+"/"+phase
+        shortphase=re.sub("Phase","",phase)
+        if phase not in phases2ignore:
+            if checkStatus(wdir,status2ignore):
+                validPhi=checkPhi("{}/{}.out".format(wdir,shortphase),wdir)
+                if args.phi_species_num == -1 or validPhi:
+                    F0 = parseLogForF0("{}/{}.out".format(wdir,shortphase))
+                    if F0 != 0.0:
+                        phaseslist.append(phase)
+                        F0list.append(float(F0))
 
+    if phaseslist != [] :
+         with open(filename,"w") as f:
+             for i,phase in enumerate(phaseslist):
+                 F0 = F0list[i]
+                 f.write("{} {}\n".format(phase,F0))
+    else:
+         print (f"Note: no valid phases in {mydir}, not writing {filename}")
+    
     #write minphase.dat if flag is set
     if args.writemin:
         # now find min phase
