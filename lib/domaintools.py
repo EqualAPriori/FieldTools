@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
+'''
+    Joshua Lequieu <lequieu@mrl.ucsb.edu>
+'''
 
 import numpy as np
 from skimage import measure
 import pdb
 #import viztools as viz
 
-# for burning algorithm
+# Need to increase recursion limit for burning algorithm
 import sys
-sys.setrecursionlimit(100000)
+sys.setrecursionlimit(800000)
+# 
 
 class DomainAnalyzer:
     '''
@@ -43,18 +47,22 @@ class DomainAnalyzer:
             raise ValueError("coords[0,0,0] != (0,0,0)")
 
         if self.__ndim == 2:
-            self.__boxl = tuple(self.__coords[-1,-1] + self.__coords[1,1]) 
-            self.__boxh = tuple(np.array(self.__boxl)*0.5) 
+            #self.__boxl = tuple(self.__coords[-1,-1] + self.__coords[1,1]) 
+            #self.__boxh = tuple(np.array(self.__boxl)*0.5) 
             self.__gridspacing = (self.__coords[1,0][0], self.__coords[0,1][1])
             self.__hvoxel = np.array([coords[1,0],coords[0,1]])
         elif self.__ndim == 3:
-            self.__boxl = tuple(self.__coords[-1,-1,-1] + self.__coords[1,1,1]) 
-            self.__boxh = tuple(np.array(self.__boxl)*0.5) 
+            #self.__boxl = tuple(self.__coords[-1,-1,-1] + self.__coords[1,1,1]) 
+            #self.__boxh = tuple(np.array(self.__boxl)*0.5) 
             self.__gridspacing = (self.__coords[1,0,0][0], self.__coords[0,1,0][1], self.__coords[0,0,1][2])
             self.__hvoxel = np.array([coords[1,0,0],coords[0,1,0],coords[0,0,1]])
         self.__hcell = self.__hvoxel * self.__Nx
         self.__volvoxel = np.linalg.det(self.__hvoxel)
         assert (np.abs(self.__volvoxel - np.linalg.det(self.__hcell) / self.__M) < 1e-5), "Volume of voxel != (Volume of cell / n voxels). This should be true!"
+
+        self.__boxl = tuple(np.sqrt(np.sum(np.square(self.__hcell),axis=1)))
+        self.__boxh = tuple(np.array(self.__boxl)*0.5) 
+
 
         # check if orthorhombic
         self.__orthorhombic = True
@@ -64,6 +72,8 @@ class DomainAnalyzer:
         elif self.__ndim == 3 :
             if np.dot(hnorm[0],[1,0,0]) != 0 or np.dot(hnorm[1],[0,1,0]) != 0 or np.dot(hnorm[2],[0,0,1]) != 0:
                 self.__orthorhombic = False
+                print("Warning! Cell is not orthorhombic. This code was written for orthorhombic cells and non-orthorhombic support is in progress. So be careful, and check that the code is doing what you think it should!")
+
 
         # check if density field is reasonable between 0-1, if not throw warning
         if self.__ndim == 2:
@@ -89,7 +99,7 @@ class DomainAnalyzer:
     def getVolVoxel(self):
         return self.__volvoxel
 
-    def getDomainStats(self, useMesh=True, plotMesh=False,add_periodic_domains=False):
+    def getDomainStats(self, useMesh=True, plotMesh=False,outputMesh=False,add_periodic_domains=False, applyPBC=True):
         ''' Calculate properties of each of the domains
             return com, surface_area, volume, IQ
 
@@ -105,11 +115,11 @@ class DomainAnalyzer:
             useMesh == False uses the less accurate approach of summing over the voxels to get the volume and area
                the volume is still pretty accurate, the area...well, I'm not even going to implement it since in CL I only want volume
 
-            add periodic comains = true adds a center for mass at each of the locations for each periodic domain
+            add periodic domains = true adds a center for mass at each of the locations for each periodic domain
 
         '''
         if useMesh and not self.__orthorhombic: 
-            print("Warning: computing volume using mesh, but cell is not orthorhombic. This will lead to errors in the surface areas calculation of the domains")
+            print("Warning: computing volume/area using mesh, but cell is not orthorhombic. This will lead to errors in the surface areas calculation of the domains")
 
 
         # create boolean selector from density fields for region definition
@@ -143,7 +153,7 @@ class DomainAnalyzer:
 
                 if self.__ndim == 2:
                     # mesh domain
-                    contours = self.meshSingleDomain(idomain+1)
+                    contours = self.meshSingleDomain(idomain+1,wrap_before_mesh=applyPBC)
                     assert (len(contours) == 1), "The contour should only be one curve, if not the area and volume calculations will be completely wrong!"
 
                     # get surface area (perimeter) and volume (area)
@@ -155,14 +165,15 @@ class DomainAnalyzer:
 
                 if self.__ndim == 3: 
                     # mesh domain
-                    verts, faces, normals, values = self.meshSingleDomain(idomain+1)
+                    verts, faces, normals, values = self.meshSingleDomain(idomain+1,wrap_before_mesh=applyPBC)
 
                     # get surface area, volume and isoperimetric quotient
                     surface_area[idomain] = measure.mesh_surface_area(verts, faces)
                     volume[idomain] = self.mesh_volume(verts,faces)
-
                     if plotMesh: 
                         self.plotMesh3D(verts,faces, filename="mesh.{}.png".format(idomain+1))
+                    if outputMesh:
+                        self.writeMesh(verts,faces,fileprefix="mesh.{}.".format(idomain+1))
 
                 IQ[idomain] = self.calcIQ(surface_area[idomain], volume[idomain])
 
@@ -225,7 +236,7 @@ class DomainAnalyzer:
             return verts,faces, normals, values
 
 
-    def meshSingleDomain(self,idomain):
+    def meshSingleDomain(self,idomain, wrap_before_mesh=True):
         '''
         Function to:
         1) apply PBC to the domains so that an entire domain is continuous (ie not split across boundaries)
@@ -239,17 +250,19 @@ class DomainAnalyzer:
         # convert to tuple to correctly set indicies of isborder
         isborder[tuple(self.__regionBorder[idomain-1])] = True
 
-        com = self.calcDomainCOM(idomain,units='box')
-        
-        # center box and properties around center of mass (so that domains don't cross pbc)
-        # np.roll is the key function here
         if self.__ndim == 2:
             alldensity = self.__fields[:,:, self.__density_field_index]
         elif self.__ndim == 3:
             alldensity = self.__fields[:,:,:, self.__density_field_index]
+
+        # center box and properties around center of mass (so that domains don't cross pbc)
+        # np.roll is the key function here
+        # if domains percolate then this will break 
+        com_box = self.calcDomainCOM(idomain,units='box')
+        com_coord = self.calcDomainCOM(idomain,units='coord')
         #coords_tmp = np.copy(self.__coords)
         for i in range(self.__ndim):
-            shift = int(0.5*self.__Nx[i] - com[i])
+            shift = int(0.5*self.__Nx[i] - com_box[i])
             isdomain = np.roll(isdomain,shift,axis=i)
             isborder = np.roll(isborder,shift,axis=i)
             #coords_tmp = np.roll(coords_tmp,shift,axis=i)
@@ -260,6 +273,10 @@ class DomainAnalyzer:
         isdomain_or_isborder = isdomain + isborder # since both bool, sum is the union of the two fields
         mydensity = np.zeros(self.__Nx)
         mydensity[isdomain_or_isborder] = alldensity[isdomain_or_isborder]
+        
+        #
+        #tmp =mydensity[:,:,:,np.newaxis] 
+        #viz.writeVTK('test.vtk',self.__coords,tmp)
 
         # plot for debugging
       #  import sys
@@ -282,6 +299,7 @@ class DomainAnalyzer:
         if self.__ndim == 2:
             #raise NotImplementedError("Meshing in 2 dimensions is in development")
             contours = measure.find_contours(mydensity, self.__density_threshold) 
+            #fixme! need to re-add center of mass to contours
             return contours
         elif self.__ndim == 3:
             #from skimage import measure
@@ -406,6 +424,13 @@ class DomainAnalyzer:
             plt.savefig(filename)
 
         plt.close()
+
+    def writeMesh(self,verts,faces,fileprefix="mesh."):
+       '''save mesh to a file'''
+       np.savetxt(fileprefix + "verts.dat",verts,header='Autogenerated mesh file. Contains x y z positions of each vertex' )
+       np.savetxt(fileprefix + "faces.dat",faces, header='Autogenerated mesh file. Contains vertex indicies of each triangle in mesh')
+        
+
 
     def calcDomainCOM(self,idomain, units='box'):
         ''' given a domain index, apply PBC and return the center of mass
