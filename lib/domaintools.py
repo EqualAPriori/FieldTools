@@ -201,12 +201,19 @@ class DomainAnalyzer:
         '''
         if self.__ndim == 2:
             mydensity = self.__fields[:,:, self.__density_field_index]
+
+            # calculate contours in 'box' units
             contours = measure.find_contours(mydensity, self.__density_threshold) 
 
-            # need to scale contours to be in terms of box dimensions
-            for c in contours:
-                c /= self.__Nx
-                c *= self.__boxl
+            # convert 'box' units to 'coords' units (this is key for non-orthorhombic cells)
+            for i,c in enumerate(contours):
+                contours[i] = (np.mat(self.__hvoxel).T * np.mat(c).T).T
+
+            # this is old, only works for orthorhombic cells
+            # need to scale contours to be in terms of 'coords' dimensions
+            #for c in contours:
+            #    c /= self.__Nx
+            #    c *= self.__boxl
 
             if datafile:
                 self.writeContours(contours,datafile)
@@ -217,7 +224,19 @@ class DomainAnalyzer:
 
         elif self.__ndim == 3:
             mydensity = self.__fields[:,:,:, self.__density_field_index]
-            verts, faces, normals, values = measure.marching_cubes_lewiner(mydensity, self.__density_threshold, spacing = self.__gridspacing)
+            #verts, faces, normals, values = measure.marching_cubes_lewiner(mydensity, self.__density_threshold, spacing = self.__gridspacing)
+            # do not use spacing=self.__gridspacing, let marching cubes calculate verticies in 'box' units (0,Nx) 
+            verts, faces, normals, values = measure.marching_cubes_lewiner(mydensity, self.__density_threshold)
+
+            # convert 'box' units to 'coords' units (this is key for non-orthorhombic cells)
+            for i,v in enumerate(verts):
+                verts[i] = (np.mat(self.__hvoxel).T * np.mat(v).T).T
+                n = normals[i]
+                normals[i] = (np.mat(self.__hvoxel).T * np.mat(n).T).T
+
+            print('Warning: Rotating verts and normals from "box" units to "coords" units is untested! Check this before proceeding!')
+            pdb.set_trace()            
+
             if datafile:
                 raise NotImplementedError("Support for writing 3D mesh not implemented")
             if plotfile:
@@ -280,12 +299,28 @@ class DomainAnalyzer:
 
         # mesh! (using scikit-image)
         if self.__ndim == 2:
-            #raise NotImplementedError("Meshing in 2 dimensions is in development")
+            # calculate contours in 'box' units
             contours = measure.find_contours(mydensity, self.__density_threshold) 
+
+            # convert 'box' units to 'coords' units (this is key for non-orthorhombic cells)
+            for i,c in enumerate(contours):
+                contours[i] = (np.mat(self.__hvoxel).T * np.mat(c).T).T
+
             return contours
         elif self.__ndim == 3:
             #from skimage import measure
-            verts, faces, normals, values = measure.marching_cubes_lewiner(mydensity, self.__density_threshold, spacing = self.__gridspacing)
+
+            #verts, faces, normals, values = measure.marching_cubes_lewiner(mydensity, self.__density_threshold, spacing = self.__gridspacing)
+            # do not use spacing=self.__gridspacing, let marching cubes calculate verticies in 'box' units (0,Nx) 
+            verts, faces, normals, values = measure.marching_cubes_lewiner(mydensity, self.__density_threshold)
+
+            # convert 'box' units to 'coords' units (this is key for non-orthorhombic cells)
+            for i,v in enumerate(verts):
+                verts[i] = (np.mat(self.__hvoxel).T * np.mat(v).T).T
+                n = normals[i]
+                normals[i] = (np.mat(self.__hvoxel).T * np.mat(n).T).T
+
+
             return verts, faces, normals, values
         else:
             raise ValueError("Meshing makes no sense in 1 dimension!")
