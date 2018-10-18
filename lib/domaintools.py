@@ -153,7 +153,7 @@ class DomainAnalyzer:
 
                 if self.__ndim == 2:
                     # mesh domain
-                    contours = self.meshSingleDomain(idomain+1,wrap_before_mesh=applyPBC)
+                    contours,density_centered = self.meshSingleDomain(idomain+1,wrap_before_mesh=applyPBC)
                     assert (len(contours) == 1), "The contour should only be one curve, if not the area and volume calculations will be completely wrong!"
 
                     # get surface area (perimeter) and volume (area)
@@ -161,7 +161,10 @@ class DomainAnalyzer:
                     volume[idomain] = self.contour_area(contours[0])
 
                     if plotMesh: 
-                        self.plotContours2D(contours,filename="mesh.{}.png".format(idomain+1))
+                        # draw surface behind the mesh
+                        self.plotContours2D(contours,filename="mesh.{}.png".format(idomain+1),surface=density_centered)
+                        # dont draw surface behind the mesh
+                        #self.plotContours2D(contours,filename="mesh.{}.png".format(idomain+1))
 
                 if self.__ndim == 3: 
                     # mesh domain
@@ -218,7 +221,7 @@ class DomainAnalyzer:
 
             # convert 'box' units to 'coords' units (this is key for non-orthorhombic cells)
             for i,c in enumerate(contours):
-                contours[i] = (np.mat(self.__hvoxel).T * np.mat(c).T).T
+                contours[i] = np.array((np.mat(self.__hvoxel).T * np.mat(c).T).T)
 
             # this is old, only works for orthorhombic cells
             # need to scale contours to be in terms of 'coords' dimensions
@@ -241,9 +244,9 @@ class DomainAnalyzer:
 
             # convert 'box' units to 'coords' units (this is key for non-orthorhombic cells)
             for i,v in enumerate(verts):
-                verts[i] = (np.mat(self.__hvoxel).T * np.mat(v).T).T
+                verts[i] = np.array((np.mat(self.__hvoxel).T * np.mat(v).T).T)
                 n = normals[i]
-                normals[i] = (np.mat(self.__hvoxel).T * np.mat(n).T).T
+                normals[i] = np.array((np.mat(self.__hvoxel).T * np.mat(n).T).T)
 
             print('Warning: Rotating verts and normals from "box" units to "coords" units is untested! Check this before proceeding!')
             pdb.set_trace()            
@@ -321,9 +324,9 @@ class DomainAnalyzer:
 
             # convert 'box' units to 'coords' units (this is key for non-orthorhombic cells)
             for i,c in enumerate(contours):
-                contours[i] = (np.mat(self.__hvoxel).T * np.mat(c).T).T
+                contours[i] = np.array((np.mat(self.__hvoxel).T * np.mat(c).T).T)
 
-            return contours
+            return contours,alldensity
         elif self.__ndim == 3:
             #from skimage import measure
 
@@ -333,24 +336,26 @@ class DomainAnalyzer:
 
             # convert 'box' units to 'coords' units (this is key for non-orthorhombic cells)
             for i,v in enumerate(verts):
-                verts[i] = (np.mat(self.__hvoxel).T * np.mat(v).T).T
+                verts[i] = np.array((np.mat(self.__hvoxel).T * np.mat(v).T).T)
                 n = normals[i]
-                normals[i] = (np.mat(self.__hvoxel).T * np.mat(n).T).T
+                normals[i] = np.array((np.mat(self.__hvoxel).T * np.mat(n).T).T)
 
 
-            return verts, faces, normals, values
+            return verts, faces, normals, values, alldensity
         else:
             raise ValueError("Meshing makes no sense in 1 dimension!")
 
     def contour_perimeter(self,contour):
         '''calculate perimeter of contour by suming up the line-segment lengths
         '''
+        assert (np.all(contour[0] == contour[-1])), "Contour must be closed! (1st point == last point)"
+
         #TODO vectorize this for loop
         p = 0.0
         n=contour.shape[0]
         for i in range(n-1):
            v = contour[i+1] - contour[i] 
-           p += np.square(v).sum()
+           p += np.sqrt(np.square(v).sum())
         return p
 
     def contour_area(self,contour):
@@ -416,19 +421,34 @@ class DomainAnalyzer:
 
         # Display the image and plot all contours found
         fig, ax = plt.subplots()
+
+        ax.set_aspect(1)
+
         if surface is not None:
-            #ax.imshow(surface.T, interpolation='nearest', cmap=plt.cm.gray)
-            ax.imshow(surface.T, interpolation='nearest')
+            x = np.arange(self.__Nx[0])
+            y = np.arange(self.__Nx[1])
+            xx,yy = np.meshgrid(x,y)
+            
+            # nice one-liner to rotate all of xx and yy using hvoxel
+            xxrot,yyrot = np.einsum('ji, mni -> jmn', self.__hvoxel.T, np.dstack([xx, yy]))
+            
+            # using pcolormesh allows us to use non-orthorhombic boxes 
+            im=ax.pcolormesh(xxrot,yyrot,surface.T)
+            fig.colorbar(im,ax=ax)
+            
+            # imshow only worked for orthorhombic boxes
+            #ax.imshow(surface.T, interpolation='nearest')
 
         for n, contour in enumerate(contours):
-            ax.plot(contour[:, 0], contour[:, 1], linewidth=2)
-
+            ax.plot(contour[:, 0], contour[:, 1], linewidth=2, color='k',ls='--',marker='o')
+    
         #ax.axis('image')
         #ax.set_xticks([])
         #ax.set_yticks([])
         if not filename:
             plt.show()
         else:
+            plt.show()
             plt.savefig(filename)
         plt.close()
 
