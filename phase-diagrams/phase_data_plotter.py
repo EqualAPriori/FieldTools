@@ -77,6 +77,54 @@ class PhaseBoundary:
             else: # create new linesegment
                 linesegments.append(np.array([pos1]))
                 nline += 1
+
+        # now I need to sort the points within each line segment
+        for il,l in enumerate(linesegments):
+            if l.shape[0] > 2:
+                # start with the top-left value (min x, max y) and then work the way down the curve
+                #minx = np.min(l[:,0])
+                maxy = np.max(l[:,1])
+                #isminx = (l[:,0] == minx) 
+                ismaxy = l[:,1] == maxy
+                isboth = ismaxy # isminx * ismaxy
+                if sum(isboth) != 1:
+                    print("Error! more than one point matches minx miny")
+                    pdb.set_trace()
+                index = isboth.argmax() # contains the row in l that is at the top-left
+            else:
+                index = 0
+               
+            # create two arrays
+            # 1) keep track of whether the index has been used
+            is_index_used = np.zeros(l.shape[0],dtype=np.bool)
+            # 2) store the sorted line
+            l_sorted = np.zeros(l.shape)
+            
+            # store 1st point
+            l_sorted[0,:] = l[index,:]
+            is_index_used[index] = True
+            
+            i=0 # stores index of l_sorted
+            while i < l.shape[0]-1:
+                # find closest (unused) element of "l" and add it to "l_sorted"
+                jmin=None
+                mindist = 1e30
+                for j in range(l.shape[0]):
+                    if is_index_used[j] != True:
+                        dist = 0
+                        for k in range(dim):
+                            dist += (l_sorted[i][k]-l[j][k]) * (l_sorted[i][k]-l[j][k])
+                        dist = np.sqrt(dist) 
+                        if dist < mindist:
+                            jmin = j
+                            mindist = dist
+                l_sorted[i+1,:] = l[jmin,:]
+                is_index_used[jmin] = True
+                i += 1
+
+            linesegments[il] = np.copy(l_sorted)
+        
+        #finally return
         return linesegments
 
 class PhaseBoundaryHolder:
@@ -183,7 +231,7 @@ class PhaseBoundaryHolder:
 
                   
 
-    def plot(self,filename,plottype,nodes=None,xlabel='',ylabel='',axisrange=[None,None,None,None],n=2, z=None,colors=None,symbols=None,xticks=None,yticks=None,aspect=None):
+    def plot(self,filename,plottype,nodes=None,xlabel='',ylabel='',axisrange=[None,None,None,None],n=2, z=None,colors=None,symbols=None,xticks=None,yticks=None,aspect=None,refPhase=None):
         if plottype == 'plain':
             marker = itertools.cycle(('o')) 
             color  = itertools.cycle(('k')) 
@@ -208,13 +256,13 @@ class PhaseBoundaryHolder:
         ax = fig.add_subplot(111)
         if plottype == 'plain':
             if n == 1:
-                self.loopplot(ax,nodes)
+                self.plot1d(ax,nodes,refPhase=refPhase)
                 self.plotvert(ax)
             elif n == 2:
                 self.ax_plot_boundaries(ax,marker=marker,color=color, showlabels=False)
         elif plottype == 'nodes' or plottype == 'nodesblack' or plottype == 'simplecolors' or plottype == 'nolegend':
             if n==1:
-                self.loopplot(ax,nodes,color=color,marker=marker,showlabels=True)
+                self.plot1d(ax,nodes,color=color,marker=marker,showlabels=True,refPhase=refPhase)
                 self.plotvert(ax)
             elif n==2:
                 if plottype != 'nolegend':
@@ -258,7 +306,7 @@ class PhaseBoundaryHolder:
             else:
                 plt.savefig(filename, bbox_inches='tight')
     
-    def loopplot(self,ax,nodes,marker='.', color='k', showlabels=False):
+    def plot1d(self,ax,nodes,marker='.', color='k', showlabels=False,refPhase=None):
         '''
         This method loops over each node in the boundary holder and 
         finds what phases are present, and then plots the free energies
@@ -275,7 +323,11 @@ class PhaseBoundaryHolder:
             for n in nodes:
                 if n.has_phase(p):
                     x.append(n.pos[0])
-                    y.append(n.get_phase_F(p))
+                    F=n.get_phase_F(p)
+                    if refPhase != None:
+                        Fref = n.get_phase_F(refPhase)
+                        F -= Fref
+                    y.append(F)
                     #pdb.set_trace()
             if showlabels:
                 ax.plot(x,y,marker=mymarker,color=mycolor,label = p)
@@ -820,6 +872,7 @@ if __name__ == '__main__':
     parser.add_argument('-p','--plotstyle3d',action='store',default='flat',help='This argument changes the 3d plot style. Flat => multiple graphs with different linestyles on top of each other')
     parser.add_argument('--stylesheet',action= 'store',default=os.path.dirname(os.path.realpath(sys.argv[0]))+'/better_style.mplstyle',help='This argument is the Matplotlib stylesheet that will be used for graphing') #the default is located in the directory this script is located at
     parser.add_argument('--aspect',action='store',default=None,help='The aspect ratio for the outputted figure use 1 for a square fig, works for a 2d graph right now')
+    parser.add_argument('-r', '--refphase', action='store', default=None,help='name of phase to reference to, only matters if 1d')
     print("IMPLEMENT CUSTOM AXIS RANGES AND LABELS FROM COMMAND LINE")
     args = parser.parse_args()
     
@@ -890,7 +943,7 @@ if __name__ == '__main__':
     if args.dim == 1:
         nodes = initialize_nodes(args.dirs, args.filename)
         boundaryholder = calc_phase_boundaries(nodes)
-        boundaryholder.plot(args.outfig,args.plottype, nodes=nodes,xlabel=args.xlabel, ylabel=args.ylabel,axisrange=args.axisrange,n=args.dim,aspect=args.aspect)
+        boundaryholder.plot(args.outfig,args.plottype, nodes=nodes,xlabel=args.xlabel, ylabel=args.ylabel,axisrange=args.axisrange,n=args.dim,aspect=args.aspect,refPhase=args.refphase)
         if args.raw != '':
             print("Saving free energy curve data to \'%s\'" % args.raw)
             boundaryholder.write(args.raw,1)
