@@ -25,6 +25,18 @@ def checkStatus(wdir,status2ignore):
 
     return True
 
+def getStatus(wdir):
+    filename="{}/STATUS".format(wdir)
+    #try:
+    with open(filename,'r') as f:
+        status=int(f.readline())
+    return status
+    #except FileNotFoundError as e:
+    #    #print (e)
+    #    print("{} not found...skipping!".format(filename))
+    #    return False
+
+
 
 def printStatusWarning(status,status2ignore,wdir):
     if status == 0 and 0 in status2ignore:
@@ -157,6 +169,7 @@ for mydir in dirs:
     os.chdir(mydir)
     phases=glob.glob("*Phase")
     phaseslist=[]
+    statuslist=[]
     F0list=[]
     for phase in phases:
         wdir=idir+'/'+mydir+"/"+phase
@@ -169,12 +182,14 @@ for mydir in dirs:
                     if F0 != 0.0:
                         phaseslist.append(phase)
                         F0list.append(float(F0))
+                        statuslist.append(getStatus(wdir))
 
     if phaseslist != [] :
          with open(filename,"w") as f:
              for i,phase in enumerate(phaseslist):
                  F0 = F0list[i]
-                 f.write("{} {}\n".format(phase,F0))
+                 status = statuslist[i]
+                 f.write("{} {} {}\n".format(phase,F0,status))
     else:
          print (f"Note: no valid phases in {mydir}, not writing {filename}")
     
