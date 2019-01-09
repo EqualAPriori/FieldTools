@@ -82,15 +82,21 @@ class PhaseBoundary:
         for il,l in enumerate(linesegments):
             if l.shape[0] > 2:
                 # start with the top-left value (min x, max y) and then work the way down the curve
-                #minx = np.min(l[:,0])
                 maxy = np.max(l[:,1])
-                #isminx = (l[:,0] == minx) 
                 ismaxy = l[:,1] == maxy
-                isboth = ismaxy # isminx * ismaxy
-                if sum(isboth) != 1:
-                    print("Error! more than one point matches minx miny")
-                    pdb.set_trace()
-                index = isboth.argmax() # contains the row in l that is at the top-left
+                if sum(ismaxy) != 1: # if more than one maxy, then use the one with the minx
+                    ltmp = np.copy(l)
+                    ltmp[~ismaxy] = 1e30 # set values that aren't maxy to a big value
+                    minx = np.min(ltmp[:,0])
+                    isminx = (ltmp[:,0] == minx) 
+
+                    isboth = isminx * ismaxy
+                    
+                    index = isboth.argmax() # contains the row in l that is at the top-left
+                    #print("Error! more than one point matches minx miny")
+                    #pdb.set_trace()
+                else:
+                    index = ismaxy.argmax() # contains the row in l that is at the top-left
             else:
                 index = 0
                
@@ -104,6 +110,11 @@ class PhaseBoundary:
             l_sorted[0,:] = l[index,:]
             is_index_used[index] = True
             
+            # compute a scale factor that weights the differences in x and y axis ranges
+            sizeofdim = [0]*dim
+            for k in range(dim):
+                sizeofdim[k] = np.max(l[:,k]) - np.min(l[:,k])
+            
             i=0 # stores index of l_sorted
             while i < l.shape[0]-1:
                 # find closest (unused) element of "l" and add it to "l_sorted"
@@ -113,7 +124,7 @@ class PhaseBoundary:
                     if is_index_used[j] != True:
                         dist = 0
                         for k in range(dim):
-                            dist += (l_sorted[i][k]-l[j][k]) * (l_sorted[i][k]-l[j][k])
+                            dist += (l_sorted[i][k]-l[j][k]) * (l_sorted[i][k]-l[j][k]) / sizeofdim[k] / sizeofdim[k]
                         dist = np.sqrt(dist) 
                         if dist < mindist:
                             jmin = j
@@ -658,10 +669,10 @@ def initialize_nodes(dirs,fnmeIn):
         Go through directories (dirs) and look for filename (fnmeIn) and load the phase information 
         the file is expected to contain:
 
-        <Phase name> <Free energy of that phase>
-        HEXPhase 3.2
-        LAMPhase 2.4
-        DISPhase 1.2
+        <Phase name> <Free energy of that phase>   [exit status]
+        HEXPhase 3.2 2 
+        LAMPhase 2.4 2
+        DISPhase 1.2 0
     '''
     dirs.sort(key=numerical_sort)
     nphases0 = None;
@@ -682,6 +693,7 @@ def initialize_nodes(dirs,fnmeIn):
         # read phases
         phases = []
         F=[]
+        status=[]
         try:
             with open(fnme,'r') as f:
                 for line in f:
