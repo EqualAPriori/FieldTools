@@ -322,6 +322,27 @@ class PhaseBoundaryHolder:
         This method loops over each node in the boundary holder and 
         finds what phases are present, and then plots the free energies
         '''
+        
+        # assume all nodes have same dimension...should be reasonable...
+        dim2plot = -1
+        if nodes[0].dim == 1:
+            dim2plot = 0
+        elif nodes[0].dim == 2:
+            # determine which dimension is changing, that should be the x axis
+            first = True 
+            for i,n in enumerate(nodes):
+                pos = n.pos
+                if i != 0:
+                    isdimequal = list(np.array(pos) == np.array(posprev) )
+                    if sum(isdimequal) != 1:
+                       raise RuntimeError("More than one dimension is changing within nodes. Dont know which dimension to plot as x-axis in 1d plot")
+                    if dim2plot == -1:
+                        dim2plot = isdimequal.index(False) # the index that is not equal is the one we want to plot
+                    elif dim2plot != isdimequal.index(False):
+                        raise RuntimeError("dim2plot is changing throughout nodes. Can't determine which dim to plot as x-axis is 1d plot")
+                posprev = pos
+
+
         phases = copy.copy(nodes[1].phases) #initialize possible phase list
         for n in nodes:
             for p in n.phases:
@@ -333,7 +354,7 @@ class PhaseBoundaryHolder:
             x,y = [],[]
             for n in nodes:
                 if n.has_phase(p):
-                    x.append(n.pos[0])
+                    x.append(n.pos[dim2plot])
                     F=n.get_phase_F(p)
                     if refPhase != None:
                         Fref = n.get_phase_F(refPhase)
@@ -345,6 +366,7 @@ class PhaseBoundaryHolder:
             else:
                 ax.plot(x,y,marker=mymarker,color=mycolor)
             self.phase_F_dict[p] = (x,y)
+
     def plotvert(self,ax):
         '''
         this method adds a vertical line for each free energy curve intersection on the 
@@ -507,6 +529,7 @@ class Node:
     __slots__ = 'pos', 'dim', 'phases', 'F', 'nextnode', 'visited', 'F_THRESHOLD','is_all_DIS'
     def __init__(self,pos, phases,F):
         self.pos = pos
+        self.dim = len(pos)
         dim = len(self.pos)
         if len(F) != len(phases):
             raise ValueError('length of phases and F are not equal!',phases, F)
@@ -958,7 +981,7 @@ if __name__ == '__main__':
         boundaryholder.plot(args.outfig,args.plottype, nodes=nodes,xlabel=args.xlabel, ylabel=args.ylabel,axisrange=args.axisrange,n=args.dim,aspect=args.aspect,refPhase=args.refphase)
         if args.raw != '':
             print("Saving free energy curve data to \'%s\'" % args.raw)
-            boundaryholder.write(args.raw,1)
+            boundaryholder.write(args.raw,dim=1)
     elif args.dim == 2:
         nodes = initialize_nodes(args.dirs, args.filename)
         boundaryholder = calc_phase_boundaries(nodes)
