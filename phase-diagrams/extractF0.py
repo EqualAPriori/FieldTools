@@ -46,18 +46,54 @@ def printStatusWarning(status,status2ignore,wdir):
     if status == 3 and 3 in status2ignore:
         print("{} is not converged (reached max steps) ...skipping!".format(wdir))
 
-def parseLogForF0(filename):
-    with open(filename,"r") as f:
-        found=False
-        for line in f:
-            if "Intensive Hamiltonian" in line: 
-                found=True
-                F0=float(line.split()[3])
-        if found==True: 
-            return F0
-        else:
-            print("Warning! No Intensive Hamiltonian in {}".format(filename))
-            return 0.0
+def parseLogForF0(filename, grab='last'):
+    
+    # grab == 'last' just takes the Intensive Hamiltonian at the end of the run
+    if grab == 'last':
+        with open(filename,"r") as f:
+            found=False
+            for line in f:
+                if "Intensive Hamiltonian" in line: 
+                    found=True
+                    F0=float(line.split()[3])
+            if found==True: 
+                return F0
+            else:
+                print("Warning! No Intensive Hamiltonian in {}".format(filename))
+                return 0.0
+
+    # grab == 'best' takes the Intensive Hamiltonian from configuration with the minimum Field Error
+    elif grab == 'best':
+        F0best=1e30
+        errorbest=1e30
+        error=1e30
+        F0=1e30
+        with open(filename,"r") as f:
+            found=False
+            for line in f:
+                if "TIME BLOCK" in line: 
+                    if error < errorbest:
+                        errorbest = error
+                        F0best = F0
+
+                if "Intensive Hamiltonian" in line: 
+                    found=True
+                    F0=float(line.split()[3])
+                elif "Field Errors" in line: 
+                    errors=re.sub(';','',line).split()[5:]
+                    error=0.0
+                    for e in errors:
+                        error += float(e)*float(e)
+                    error = error**0.5 
+            if found==True: 
+                return F0best
+            else:
+                print("Warning! No Intensive Hamiltonian in {}".format(filename))
+                return 0.0
+    else:
+        raise RuntimeError(f'Invalid grab = {grab}')
+
+
 
 
 
@@ -145,7 +181,9 @@ parser.add_argument('-t','--fraction_tolerance',action='store',default=0.005,hel
 parser.add_argument('-p','--phi_species_num',action='store',default=0,help='The species number used to check that the number fraction (phiA) is correct. The default is 0 (the first species) enter -1 to skip this check')
 parser.add_argument('-v','--verbose',action='count',help='Make the ouput of the script verbose, will show found phi values')
 parser.add_argument('--writemin', action='store_true', help='write minimum phase to file')
+parser.add_argument('--grab', action='store',default='last', help='Which value of F0 "last" or "best" should the script grab?')
 args = parser.parse_args()
+print(args)
 
 filename=args.filename
 phases2ignore = [a+"Phase" for a in args.ignorephase ]
@@ -178,7 +216,7 @@ for mydir in dirs:
             if checkStatus(wdir,status2ignore):
                 validPhi=checkPhi("{}/{}.out".format(wdir,shortphase),wdir)
                 if args.phi_species_num == -1 or validPhi:
-                    F0 = parseLogForF0("{}/{}.out".format(wdir,shortphase))
+                    F0 = parseLogForF0("{}/{}.out".format(wdir,shortphase),grab=args.grab)
                     if F0 != 0.0:
                         phaseslist.append(phase)
                         F0list.append(float(F0))
