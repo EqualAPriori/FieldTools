@@ -115,23 +115,27 @@ class PhaseBoundary:
             for k in range(dim):
                 sizeofdim[k] = np.max(l[:,k]) - np.min(l[:,k])
             
-            i=0 # stores index of l_sorted
-            while i < l.shape[0]-1:
-                # find closest (unused) element of "l" and add it to "l_sorted"
-                jmin=None
-                mindist = 1e30
-                for j in range(l.shape[0]):
-                    if is_index_used[j] != True:
-                        dist = 0
-                        for k in range(dim):
-                            dist += (l_sorted[i][k]-l[j][k]) * (l_sorted[i][k]-l[j][k]) / sizeofdim[k] / sizeofdim[k]
-                        dist = np.sqrt(dist) 
-                        if dist < mindist:
-                            jmin = j
-                            mindist = dist
-                l_sorted[i+1,:] = l[jmin,:]
-                is_index_used[jmin] = True
-                i += 1
+            if l.shape[0] > 2:
+                i=0 # stores index of l_sorted
+                while i < l.shape[0]-1:
+                    # find closest (unused) element of "l" and add it to "l_sorted"
+                    jmin=None
+                    mindist = 1e30
+                    for j in range(l.shape[0]):
+                        if is_index_used[j] != True:
+                            dist = 0
+                            for k in range(dim):
+                                dist += (l_sorted[i][k]-l[j][k]) * (l_sorted[i][k]-l[j][k]) / sizeofdim[k] / sizeofdim[k]
+                            dist = np.sqrt(dist) 
+                            if dist < mindist:
+                                jmin = j
+                                mindist = dist
+                    l_sorted[i+1,:] = l[jmin,:]
+                    is_index_used[jmin] = True
+                    i += 1
+            else:
+                l_sorted = np.copy(l)
+                
 
             linesegments[il] = np.copy(l_sorted)
         
