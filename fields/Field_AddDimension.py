@@ -29,18 +29,18 @@ if __name__ == "__main__":
     outfilename = args.outfilename #"density2d.dat"
     newDim = args.dimension
     if newDim >= 2:
-        Ny = args.Ny                   #64   # number of plane waves in new dimension
-        Ly = args.Ly                   #5.0  # length of box in new dimension
+        Ny = args.Ny   # number of plane waves in new dimension
+        Ly = args.Ly   # length of box in new dimension
     if newDim == 3:
-        Nz = args.Nz                   #64   # number of plane waves in new dimension
-        Lz = args.Lz                   #5.0  # length of box in new dimension
+        Nz = args.Nz   # number of plane waves in new dimension
+        Lz = args.Lz   # length of box in new dimension
 
     infiletype=infilename.split('.')[-1]
     outfiletype=outfilename.split('.')[-1]
     if (infiletype != "bin" and infiletype != 'dat'):
         raise RuntimeError(f"input file ({infilename}) must have file type of .bin or .dat")
-    if (outfiletype != "bin" and outfiletype != 'dat'):
-        raise RuntimeError(f"output file ({outfilename}) must have file type of .bin or .dat")
+    if (outfiletype != "bin" and outfiletype != 'dat' and outfiletype != 'in'):
+        raise RuntimeError(f"output file ({outfilename}) must have file type of .bin, .dat or .in")
 
     if infiletype == 'dat':
         coords, fields = io.ReadDatFile(infilename)
@@ -94,7 +94,7 @@ if __name__ == "__main__":
     
     # now write ourput
     # just assumes not kspace or complex, not a great long term solution
-    if outfiletype == 'dat':
+    if outfiletype == 'dat' or outfiletype == 'in':
         io.WriteDatFile(outfilename,coordsrep,fieldsrep,iskspace=False, iscomplex=False)
     else:
         io.WriteBinFile(outfilename,coordsrep,fieldsrep,iskspace=False, iscomplex=False)
