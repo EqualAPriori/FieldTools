@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 
 import sys
-sys.path.append("/home/lequieu/Work/tools/lib")
+import os
+#sys.path.append("/home/lequieu/Work/tools/lib")
+mypath = os.path.realpath(sys.argv[0])#the absolute path to this script
+libpath= '/'.join(mypath.split('/')[0:-2])+'/lib' # remove script name and domain_analysis directory
+sys.path.append(libpath)
 
 import numpy as np
 from os import path
