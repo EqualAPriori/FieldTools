@@ -119,7 +119,7 @@ class PhaseBoundary:
                 i=0 # stores index of l_sorted
                 while i < l.shape[0]-1:
                     # find closest (unused) element of "l" and add it to "l_sorted"
-                    jmin=None
+                    jmin=0
                     mindist = 1e30
                     for j in range(l.shape[0]):
                         if is_index_used[j] != True:
@@ -130,7 +130,11 @@ class PhaseBoundary:
                             if dist < mindist:
                                 jmin = j
                                 mindist = dist
-                    l_sorted[i+1,:] = l[jmin,:]
+                    try:
+                        l_sorted[i+1,:] = l[jmin,:]
+                    except:
+                        pdb.set_trace()
+            
                     is_index_used[jmin] = True
                     i += 1
             else:
@@ -948,6 +952,9 @@ if __name__ == '__main__':
         for i in range(len(nums1)):
            #in every path if the number at the current location is different add one to the dimension
            for mydir in dirs[1:]:
+               if mydir[-1] == '/':
+                 raise RuntimeError(f'Directory "{mydir}" contains a trailing slash, this messes up parsing. Please remove and try again.')
+
                mysubdir = re.split('/',mydir)[locs[i]]
                if float(re.sub('[^0-9.]',"",re.split('_',mysubdir)[-1])) != nums1[i]:#grab the last number following the underscore since there may be multiple numbers in a directory
                     args.dim += 1
