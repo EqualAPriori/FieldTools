@@ -22,6 +22,8 @@ def checkStatus(wdir,status2ignore):
     if status == 3 and 3 in status2ignore:
         print("{} is not converged (reached max steps) ...skipping!".format(wdir))
         return False
+    if status in status2ignore:
+        return False
 
     return True
 
@@ -228,28 +230,27 @@ for mydir in dirs:
                  F0 = F0list[i]
                  status = statuslist[i]
                  f.write("{} {} {}\n".format(phase,F0,status))
+         #write minphase.dat if flag is set
+         if args.writemin:
+             # now find min phase
+             val, idx = min((val, idx) for (idx, val) in enumerate(F0list))
+     
+             # check if all are DIS
+             THRESH=1e-4
+             alldis=True
+             for myF in F0list:
+                 if (abs(myF-val) > THRESH):
+                    alldis=False
+             if alldis:
+                idx=phaseslist.index('DISPhase')
+     
+             # and output to file
+             ofile="minphase.dat"
+             with open(ofile,'w') as f:
+                 phase=phaseslist[idx]
+                 shortphase=re.sub("Phase","",phase)
+                 f.write("{}".format(shortphase))
     else:
          print (f"Note: no valid phases in {mydir}, not writing {filename}")
     
-    #write minphase.dat if flag is set
-    if args.writemin:
-        # now find min phase
-        val, idx = min((val, idx) for (idx, val) in enumerate(F0list))
-
-        # check if all are DIS
-        THRESH=1e-4
-        alldis=True
-        for myF in F0list:
-            if (abs(myF-val) > THRESH):
-               alldis=False
-        if alldis:
-           idx=phaseslist.index('DIS')
-
-        # and output to file
-        ofile="minphase.dat"
-        with open(ofile,'w') as f:
-            phase=phaseslist[idx]
-            shortphase=re.sub("Phase","",phase)
-            f.write("{}".format(shortphase))
-
     os.chdir(idir)
