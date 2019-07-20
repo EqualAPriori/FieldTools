@@ -245,16 +245,16 @@ def calcAllCoords(ndim,Nx,h,M):
     return AllCoords.transpose()
 
 
-def WriteDatFile(outfilename, coords, fields, iskspace = False, iscomplex = False):
+def WriteDatFile(outfilename, coords, fields, iskspace = False, iscomplex = False, writeComplex = False):
 
     outfilehndl = open(outfilename,'w')
     Dim = len(coords.shape) - 1
     nfields = fields.shape[Dim]
 
-    assert(iscomplex==False), "fielddata isn't right if data includes complex, need to fix this"
+    #assert(iscomplex==False), "fielddata isn't right if data includes complex, need to fix this"
 
-    if iscomplex: 
-        nfields = int(nfields/2)
+    #if iscomplex: 
+    #    nfields = int(nfields/2)
 
     Nx = coords.shape[:Dim]
     if Dim == 1:
@@ -273,7 +273,7 @@ def WriteDatFile(outfilename, coords, fields, iskspace = False, iscomplex = Fals
     fielddata = np.ravel(fields,order='F')
 
     outfilehndl.write("# Format version 3\n")
-    outfilehndl.write("# nfields = {0}\n".format(nfields))
+    outfilehndl.write("# nfields = {0}\n".format(nfields/2 if complexdata else nfields))
     outfilehndl.write("# NDim = {0}\n".format(Dim))
     outfilehndl.write("# PW grid = ")
     for i in range(Dim):
@@ -287,7 +287,7 @@ def WriteDatFile(outfilename, coords, fields, iskspace = False, iscomplex = Fals
 
       for ix in range(0,griddim[0]):
         outfilehndl.write("%16.10g " % coords[ix][0])
-        for n in range(nfields):
+        for n in range(nfields):  #unclear if handled correctly now, not sure why original code seems to write the same field twice?
           outfilehndl.write("%16.10g " % fields[ix][n])
           outfilehndl.write("%16.10g " % fields[ix][n])
         outfilehndl.write("\n")
@@ -327,7 +327,12 @@ def WriteDatFile(outfilename, coords, fields, iskspace = False, iscomplex = Fals
       for ix in range(0,griddim[0]):
           for iy in range(0,griddim[1]):
               outfilehndl.write("%7.4f %7.4f " % (coords[ix,iy,0], coords[ix,iy,1]))
-              for n in range(nfields):
+              
+              if complexdata and not writeComplex:
+                for n in np.arange(0,nfields,2):
+                  outfilehndl.write("%16.10g " % (fields[ix,iy,n]))
+              else:
+                for n in range(nfields):
                   outfilehndl.write("%16.10g " % (fields[ix,iy,n]))
               outfilehndl.write("\n")
           outfilehndl.write("\n")
@@ -378,8 +383,14 @@ def WriteDatFile(outfilename, coords, fields, iskspace = False, iscomplex = Fals
         for iy in range(0,griddim[1]):
           for iz in range(0,griddim[2]):
               outfilehndl.write("%7.4f %7.4f %7.4f" % (coords[ix,iy,iz,0], coords[ix,iy,iz,1],coords[ix,iy,iz,2]))
-              for n in range(nfields):
-                  outfilehndl.write("%16.10g " % (fields[ix,iy,iz,n]))
+              
+              if complexdata and not writeComplex:
+                for n in np.arange(0,nfields,2):
+                    outfilehndl.write("%16.10g " % (fields[ix,iy,iz,n]))
+              else:
+                for n in range(nfields):
+                    outfilehndl.write("%16.10g " % (fields[ix,iy,iz,n]))
+                
               outfilehndl.write("\n")
           outfilehndl.write("\n")
 
