@@ -54,8 +54,15 @@ def replicate_fields(coords,fields,nreplicates):
         newcoords = np.dstack([xxrot,yyrot])
 
     elif __ndim == 3:
-        raise NotImplementedError("three dimenstions not implemented yet!")
-  
+        #raise NotImplementedError("three dimenstions not implemented yet!")
+        x = np.arange(newNx[0])
+        y = np.arange(newNx[1])
+        z = np.arange(newNx[2])
+        xx,yy,zz = np.meshgrid(x,y,z,indexing='ij') 
+        #hvoxel is currently a matrix of [cellvec index, xyz]
+        xyzstacked = np.concatenate([xx[...,None],yy[...,None],zz[...,None]], axis=3) #generalization of dstack
+        xxrot,yyrot,zzrot = np.einsum('ij, mnlj -> imnl', __hvoxel, xyzstacked)
+        newcoords = np.concatenate([ xxrot[...,None], yyrot[...,None], zzrot[...,None] ], axis=3)
 
     return newcoords,newfields
 
