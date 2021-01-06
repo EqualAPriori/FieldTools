@@ -236,7 +236,7 @@ def writeVTK_XML(outfile, AllCoords, AllFields):
 
 
     o = open(outfile,"w")
-    o.write("<VTKFile type='”RectilinearGrid' version='0.1' byte_order='LittleEndian'>\n")
+    o.write("<VTKFile type='RectilinearGrid' version='0.1' byte_order='LittleEndian'>\n")
     o.write("<RectilinearGrid WholeExtent=\" {} {} {} {} {} {}\"> \n".format(x1,x2,y1,y2,z1,z2))
     o.write("<Piece Extent=' {} {} {} {} {} {}'>\n".format(x1,x2,y1,y2,z1,z2))
     o.write("<PointData Scalars=\"field0\">\n") # fixme for multiple fields
