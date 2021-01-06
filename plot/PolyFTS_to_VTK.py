@@ -34,6 +34,7 @@ if __name__ == "__main__":
   parser = ap.ArgumentParser(description='Convert PolyFTS Field file to Legacy VTK format')
   parser.add_argument('infiles',metavar='inputfiles',nargs='*',default=['./density.bin'],help='Input filename containing unformatted Field data')
   parser.add_argument('-v','--verbose',action='store_true',default=False,help='Print lots of extra info')
+  parser.add_argument('-force_ortho', action='store_true',help='force orthorhombic output (for memory savings, diagnostics)')
   # Parse the command-line arguments
   args=parser.parse_args(sys.argv[1:])
 
@@ -85,5 +86,5 @@ if __name__ == "__main__":
       
       print ("Outputting to Legacy VTK formatted file {}".format(outfile))
       #viztools.writeVTK(outfile, Nx, orthorhombic, M, AllCoords, AllFields)
-      viztools.writeVTK(outfile, AllCoords, AllFields)
+      viztools.writeVTK(outfile, AllCoords, AllFields,force_ortho_out = args.force_ortho)
 

@@ -61,7 +61,7 @@ def isOrthorhombic(AllCoords):
 
 
 #def writeVTK(outfile, Nx, orthorhombic, M, AllCoords, AllFields):
-def writeVTK(outfile, AllCoords, AllFields,binary=False):
+def writeVTK(outfile, AllCoords, AllFields,binary=False,force_ortho_out=False):
 
     ndim = len(AllCoords.shape) - 1
     Nx = AllCoords.shape[:ndim]
@@ -78,6 +78,15 @@ def writeVTK(outfile, AllCoords, AllFields,binary=False):
         if ndim == 3:
             spacing = (AllCoords[1,0,0][0], AllCoords[0,1,0][1], AllCoords[0,0,1][2])
         logging.info("Mesh spacing       {}".format(spacing))
+    if force_ortho_out and not orthorhombic:
+        if ndim == 1:
+            spacing = (AllCoords[1][0])
+        if ndim == 2:
+            vecs = (AllCoords[1,0], AllCoords[0,1])
+            spacing = ( np.sqrt(np.sum((vec**2.0))) for vec in vecs )
+        if ndim == 3:
+            vecs = (AllCoords[1,0,0], AllCoords[0,1,0], AllCoords[0,0,1])
+            spacing = ( np.sqrt(np.sum((vec**2.0))) for vec in vecs )
     
     #FIXME if nfields is only 1 then reshape
     #if nfields == 1:
@@ -109,7 +118,7 @@ def writeVTK(outfile, AllCoords, AllFields,binary=False):
     # Write Legacy VTK file.
     o = open(outfile,"w")
     
-    if orthorhombic:
+    if orthorhombic or force_ortho_out:
         o.write("# vtk DataFile Version 3.0\n")
         o.write("PolyFTS field data\n")
         o.write("ASCII\n")
@@ -236,7 +245,7 @@ def writeVTK_XML(outfile, AllCoords, AllFields):
 
 
     o = open(outfile,"w")
-    o.write("<VTKFile type='”RectilinearGrid' version='0.1' byte_order='LittleEndian'>\n")
+    o.write("<VTKFile type='RectilinearGrid' version='0.1' byte_order='LittleEndian'>\n")
     o.write("<RectilinearGrid WholeExtent=\" {} {} {} {} {} {}\"> \n".format(x1,x2,y1,y2,z1,z2))
     o.write("<Piece Extent=' {} {} {} {} {} {}'>\n".format(x1,x2,y1,y2,z1,z2))
     o.write("<PointData Scalars=\"field0\">\n") # fixme for multiple fields
