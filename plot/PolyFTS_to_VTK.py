@@ -57,7 +57,7 @@ if __name__ == "__main__":
       # Generate the output file name automatically (padded with zeros)
       head,tail = path.split(infile)
       outfile,ext = path.splitext(tail)
-      outfile_alphas=''.join([c for c in outfile if c.isalpha()])
+      outfile_alphas=''.join([c for c in outfile if c.isalpha()]) #note will remove non-alphabetic characters from the filename!
       outfile_digits=''.join([c for c in outfile if c.isdigit()])
       zeropadded=str("{val:0>{width}}".format(val=outfile_digits,width=maxdigit))
       outfile = outfile_alphas + zeropadded  + ".vtk"
