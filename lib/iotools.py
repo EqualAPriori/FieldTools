@@ -273,7 +273,7 @@ def WriteDatFile(outfilename, coords, fields, iskspace = False, iscomplex = Fals
     fielddata = np.ravel(fields,order='F')
 
     outfilehndl.write("# Format version 3\n")
-    outfilehndl.write("# nfields = {0}\n".format(nfields/2 if complexdata else nfields))
+    outfilehndl.write("# nfields = {0}\n".format(int(nfields/2) if complexdata else nfields))
     outfilehndl.write("# NDim = {0}\n".format(Dim))
     outfilehndl.write("# PW grid = ")
     for i in range(Dim):
@@ -382,7 +382,7 @@ def WriteDatFile(outfilename, coords, fields, iskspace = False, iscomplex = Fals
       for ix in range(0,griddim[0]):
         for iy in range(0,griddim[1]):
           for iz in range(0,griddim[2]):
-              outfilehndl.write("%7.4f %7.4f %7.4f" % (coords[ix,iy,iz,0], coords[ix,iy,iz,1],coords[ix,iy,iz,2]))
+              outfilehndl.write("%7.4f %7.4f %7.4f " % (coords[ix,iy,iz,0], coords[ix,iy,iz,1],coords[ix,iy,iz,2]))
               
               if complexdata and not writeComplex:
                 for n in np.arange(0,nfields,2):
